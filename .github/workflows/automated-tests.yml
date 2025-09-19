@@ -1,0 +1,461 @@
+name: Automated Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # 每天凌晨3点运行完整测试套件
+    - cron: '0 3 * * *'
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+  PHP_VERSION: '8.1'
+
+jobs:
+  # 单元测试
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Unit Tests
+    strategy:
+      matrix:
+        component: [n8n-core, firebird-portal, youtube-downloader, ai-agents]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+          
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Setup PHP
+      if: matrix.component == 'firebird-portal'
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ env.PHP_VERSION }}
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql, pdo_mysql
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        pip install -r requirements.txt
+        if [ "${{ matrix.component }}" == "firebird-portal" ]; then
+          cd 02-firebird-portal && composer install --no-progress --prefer-dist --optimize-autoloader
+        fi
+        
+    - name: Setup test environment
+      run: |
+        cp .env.example .env.test
+        echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> .env.test
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env.test
+        echo "MYSQL_URL=mysql://test_user:test_password@localhost:3306/test_db" >> .env.test
+        echo "N8N_ENCRYPTION_KEY=test_key_12345678901234567890abcd" >> .env.test
+        
+    - name: Run N8N Core tests
+      if: matrix.component == 'n8n-core'
+      run: |
+        cd 01-n8n-automation-core
+        npm run test:unit -- --coverage
+      env:
+        NODE_ENV: test
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+        
+    - name: Run Firebird Portal tests
+      if: matrix.component == 'firebird-portal'
+      run: |
+        cd 02-firebird-portal
+        ./vendor/bin/phpunit --coverage-clover coverage.xml tests/Unit/
+      env:
+        DB_CONNECTION: mysql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_DATABASE: test_db
+        DB_USERNAME: test_user
+        DB_PASSWORD: test_password
+        
+    - name: Run YouTube Downloader tests
+      if: matrix.component == 'youtube-downloader'
+      run: |
+        cd 03-youtube-downloader
+        python -m pytest tests/unit/ --cov=src --cov-report=xml
+      env:
+        PYTHONPATH: ${{ github.workspace }}/03-youtube-downloader/src
+        
+    - name: Run AI Agents tests
+      if: matrix.component == 'ai-agents'
+      run: |
+        cd 04-ai-agents
+        python -m pytest tests/unit/ --cov=src --cov-report=xml
+      env:
+        PYTHONPATH: ${{ github.workspace }}/04-ai-agents/src
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+        
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml,./coverage/lcov.info
+        flags: unittests,${{ matrix.component }}
+        name: codecov-${{ matrix.component }}
+
+  # 集成测试
+  integration-tests:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    needs: [unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+          
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        npm ci
+        pip install -r requirements.txt
+        
+    - name: Setup test environment
+      run: |
+        cp .env.example .env.test
+        echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> .env.test
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env.test
+        echo "MYSQL_URL=mysql://test_user:test_password@localhost:3306/test_db" >> .env.test
+        echo "N8N_ENCRYPTION_KEY=test_key_12345678901234567890abcd" >> .env.test
+        
+    - name: Run database migrations
+      run: |
+        npm run db:migrate
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        
+    - name: Run integration tests
+      run: |
+        npm run test:integration
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+        MYSQL_URL: mysql://test_user:test_password@localhost:3306/test_db
+        N8N_ENCRYPTION_KEY: test_key_12345678901234567890abcd
+        
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: integration-test-results
+        path: |
+          test-results/
+          coverage/
+
+  # API测试
+  api-tests:
+    runs-on: ubuntu-latest
+    name: API Tests
+    needs: [integration-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Start services with Docker Compose
+      run: |
+        cp .env.example .env.test
+        echo "N8N_ENCRYPTION_KEY=test_key_12345678901234567890abcd" >> .env.test
+        docker-compose --env-file .env.test up -d
+        sleep 60
+        
+    - name: Wait for services to be ready
+      run: |
+        timeout 300 bash -c 'until curl -f http://localhost:5678/healthz; do sleep 5; done'
+        timeout 300 bash -c 'until curl -f http://localhost:8080/api/health; do sleep 5; done'
+        timeout 300 bash -c 'until curl -f http://localhost:8000/health; do sleep 5; done'
+        
+    - name: Run API tests with Newman
+      run: |
+        npm install -g newman
+        newman run tests/api/n8n-api.postman_collection.json \
+          --environment tests/api/test.postman_environment.json \
+          --reporters cli,json \
+          --reporter-json-export api-test-results.json
+          
+    - name: Run API tests with Pytest
+      run: |
+        python -m pytest tests/api/ --junitxml=api-test-results.xml
+      env:
+        API_BASE_URL: http://localhost:8000
+        N8N_BASE_URL: http://localhost:5678
+        FIREBIRD_BASE_URL: http://localhost:8080
+        
+    - name: Upload API test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: api-test-results
+        path: |
+          api-test-results.json
+          api-test-results.xml
+          
+    - name: Cleanup
+      if: always()
+      run: docker-compose down -v
+
+  # 端到端测试
+  e2e-tests:
+    runs-on: ubuntu-latest
+    name: End-to-End Tests
+    needs: [api-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright
+      run: npx playwright install --with-deps
+      
+    - name: Start services with Docker Compose
+      run: |
+        cp .env.example .env.test
+        echo "N8N_ENCRYPTION_KEY=test_key_12345678901234567890abcd" >> .env.test
+        docker-compose --env-file .env.test up -d
+        sleep 60
+        
+    - name: Wait for services to be ready
+      run: |
+        timeout 300 bash -c 'until curl -f http://localhost:5678/healthz; do sleep 5; done'
+        timeout 300 bash -c 'until curl -f http://localhost:8080; do sleep 5; done'
+        
+    - name: Run E2E tests
+      run: |
+        npm run test:e2e
+      env:
+        BASE_URL: http://localhost:5678
+        FIREBIRD_URL: http://localhost:8080
+        
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results
+        path: |
+          test-results/
+          playwright-report/
+          
+    - name: Cleanup
+      if: always()
+      run: docker-compose down -v
+
+  # 性能测试
+  performance-tests:
+    runs-on: ubuntu-latest
+    name: Performance Tests
+    needs: [e2e-tests]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install k6
+      run: |
+        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+        
+    - name: Start services
+      run: |
+        cp .env.example .env.test
+        echo "N8N_ENCRYPTION_KEY=test_key_12345678901234567890abcd" >> .env.test
+        docker-compose --env-file .env.test up -d
+        sleep 60
+        
+    - name: Wait for services
+      run: |
+        timeout 300 bash -c 'until curl -f http://localhost:5678/healthz; do sleep 5; done'
+        
+    - name: Run performance tests
+      run: |
+        k6 run tests/performance/load-test.js --out json=performance-results.json
+        k6 run tests/performance/stress-test.js --out json=stress-results.json
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: |
+          performance-results.json
+          stress-results.json
+          
+    - name: Cleanup
+      if: always()
+      run: docker-compose down -v
+
+  # 测试报告汇总
+  test-summary:
+    runs-on: ubuntu-latest
+    name: Test Summary
+    needs: [unit-tests, integration-tests, api-tests, e2e-tests]
+    if: always()
+    
+    steps:
+    - name: Download all test artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Generate test summary
+      run: |
+        echo "# 测试结果汇总" > test-summary.md
+        echo "" >> test-summary.md
+        echo "## 测试执行状态" >> test-summary.md
+        echo "" >> test-summary.md
+        echo "| 测试类型 | 状态 |" >> test-summary.md
+        echo "|---------|------|" >> test-summary.md
+        echo "| 单元测试 | ${{ needs.unit-tests.result }} |" >> test-summary.md
+        echo "| 集成测试 | ${{ needs.integration-tests.result }} |" >> test-summary.md
+        echo "| API测试 | ${{ needs.api-tests.result }} |" >> test-summary.md
+        echo "| E2E测试 | ${{ needs.e2e-tests.result }} |" >> test-summary.md
+        echo "" >> test-summary.md
+        echo "生成时间: $(date)" >> test-summary.md
+        
+    - name: Upload test summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-summary
+        path: test-summary.md
+        
+    - name: Comment PR with test summary
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('test-summary.md', 'utf8');
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          })

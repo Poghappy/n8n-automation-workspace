@@ -1,0 +1,285 @@
+name: "N8N Automation Workspace CodeQL Config"
+
+# 禁用默认查询
+disable-default-queries: false
+
+# 自定义查询包
+queries:
+  - name: security-and-quality
+    uses: security-and-quality
+  - name: security-extended
+    uses: security-extended
+  - name: code-scanning
+    uses: code-scanning
+
+# 路径过滤器
+paths-ignore:
+  - "node_modules/**"
+  - "vendor/**"
+  - "venv/**"
+  - "*.min.js"
+  - "*.bundle.js"
+  - "dist/**"
+  - "build/**"
+  - "coverage/**"
+  - "test-results/**"
+  - "playwright-report/**"
+  - "logs/**"
+  - "*.log"
+  - "*.tmp"
+  - "*.cache"
+  - ".git/**"
+  - ".github/workflows/**"
+  - "docs/**"
+  - "*.md"
+  - "*.txt"
+  - "*.json"
+  - "*.yml"
+  - "*.yaml"
+  - "*.xml"
+  - "*.csv"
+  - "*.sql"
+  - "backups/**"
+  - "downloads/**"
+  - "temp/**"
+  - "templates_c/**"
+  - "cache/**"
+
+# 包含的路径
+paths:
+  - "01-n8n-automation-core/src/**"
+  - "01-n8n-automation-core/development/**"
+  - "02-firebird-portal/src/**"
+  - "02-firebird-portal/api/**"
+  - "03-youtube-downloader/src/**"
+  - "03-youtube-downloader/*.py"
+  - "04-ai-agents/src/**"
+  - "04-ai-agents/**/*.py"
+  - "src/**"
+  - "scripts/**"
+  - "*.js"
+  - "*.ts"
+  - "*.py"
+  - "*.php"
+
+# 自定义查询
+custom-queries:
+  # JavaScript/TypeScript 安全查询
+  - name: javascript-security
+    description: "JavaScript security vulnerabilities"
+    language: javascript
+    queries:
+      - "ql/javascript/ql/src/Security"
+      - "ql/javascript/ql/src/experimental/Security"
+
+  # Python 安全查询
+  - name: python-security
+    description: "Python security vulnerabilities"
+    language: python
+    queries:
+      - "ql/python/ql/src/Security"
+      - "ql/python/ql/src/experimental/Security"
+
+# 查询过滤器
+query-filters:
+  # 排除低严重性问题
+  - exclude:
+      id: js/unused-local-variable
+      id: py/unused-local-variable
+      id: js/useless-assignment-to-local
+      id: py/useless-assignment-to-local
+
+  # 包含高严重性安全问题
+  - include:
+      tags: security
+      severity: high
+
+  - include:
+      tags: security
+      severity: critical
+
+# 数据库配置
+database:
+  # 数据库创建选项
+  create:
+    # 包含测试代码
+    include-test-code: true
+    # 跟踪外部依赖
+    trace-external-dependencies: true
+    # 最大内存使用
+    max-memory: 4096
+    # 超时设置
+    timeout: 1800
+
+# 分析选项
+analysis:
+  # 启用实验性功能
+  experimental: true
+  # 详细输出
+  verbose: true
+  # 并行分析
+  threads: 0  # 使用所有可用CPU核心
+
+# 特定语言配置
+languages:
+  javascript:
+    # JavaScript 特定配置
+    extractor-options:
+      # 包含 TypeScript
+      typescript: true
+      # 包含 JSX
+      jsx: true
+      # 包含 Vue 文件
+      vue: true
+      # 最大文件大小 (MB)
+      max-file-size: 10
+      # 解析超时 (秒)
+      parse-timeout: 300
+
+  python:
+    # Python 特定配置
+    extractor-options:
+      # Python 版本
+      python-version: "3.11"
+      # 包含类型提示
+      include-type-hints: true
+      # 最大文件大小 (MB)
+      max-file-size: 10
+      # 解析超时 (秒)
+      parse-timeout: 300
+
+# 输出配置
+output:
+  # SARIF 输出格式
+  format: sarif
+  # 包含查询帮助
+  include-query-help: true
+  # 包含源代码片段
+  include-source-snippets: true
+  # 最大结果数
+  max-results: 1000
+
+# 缓存配置
+cache:
+  # 启用缓存
+  enabled: true
+  # 缓存目录
+  directory: ".codeql-cache"
+  # 缓存过期时间 (小时)
+  expiry: 168  # 7天
+
+# 性能调优
+performance:
+  # 内存限制 (MB)
+  memory-limit: 8192
+  # 超时设置 (秒)
+  timeout: 3600
+  # 并发查询数
+  concurrent-queries: 4
+
+# 报告配置
+reporting:
+  # 包含指标
+  include-metrics: true
+  # 包含时间信息
+  include-timing: true
+  # 详细错误信息
+  verbose-errors: true
+
+# 集成配置
+integrations:
+  # GitHub 集成
+  github:
+    # 自动创建 issue
+    auto-create-issues: false
+    # issue 标签
+    issue-labels:
+      - "security"
+      - "codeql"
+    # 分配给
+    assignees:
+      - "security-team"
+
+  # Slack 通知
+  slack:
+    # 启用通知
+    enabled: false
+    # Webhook URL (从环境变量获取)
+    webhook-url: "${SLACK_WEBHOOK_URL}"
+    # 通知频道
+    channel: "#security-alerts"
+
+# 自定义规则
+custom-rules:
+  # N8N 特定规则
+  n8n-specific:
+    - name: "hardcoded-credentials"
+      description: "检测硬编码的凭据"
+      pattern: "(password|secret|key|token)\\s*=\\s*['\"][^'\"]+['\"]"
+      severity: "high"
+      
+    - name: "sql-injection"
+      description: "检测潜在的SQL注入"
+      pattern: "query\\s*\\+\\s*['\"]"
+      severity: "critical"
+      
+    - name: "xss-vulnerability"
+      description: "检测XSS漏洞"
+      pattern: "innerHTML\\s*=\\s*.*\\+.*"
+      severity: "high"
+
+  # API 安全规则
+  api-security:
+    - name: "missing-auth"
+      description: "检测缺少认证的API端点"
+      pattern: "app\\.(get|post|put|delete)\\(['\"][^'\"]*['\"]\\s*,\\s*(?!.*auth)"
+      severity: "medium"
+      
+    - name: "cors-misconfiguration"
+      description: "检测CORS配置错误"
+      pattern: "Access-Control-Allow-Origin.*\\*"
+      severity: "medium"
+
+# 白名单配置
+whitelist:
+  # 文件白名单
+  files:
+    - "test/**"
+    - "tests/**"
+    - "spec/**"
+    - "*.test.js"
+    - "*.spec.js"
+    - "*.test.py"
+    - "*.spec.py"
+
+  # 规则白名单
+  rules:
+    - "js/unused-local-variable"
+    - "py/unused-import"
+
+# 黑名单配置
+blacklist:
+  # 敏感文件模式
+  sensitive-files:
+    - "*.key"
+    - "*.pem"
+    - "*.p12"
+    - "*.pfx"
+    - "*secret*"
+    - "*password*"
+    - "*credential*"
+
+# 通知配置
+notifications:
+  # 邮件通知
+  email:
+    enabled: false
+    recipients:
+      - "security@company.com"
+    severity-threshold: "high"
+
+  # 团队通知
+  teams:
+    enabled: false
+    webhook-url: "${TEAMS_WEBHOOK_URL}"
+    severity-threshold: "critical"

@@ -1,0 +1,272 @@
+version: 2
+
+updates:
+  # 主项目 Node.js 依赖
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "project-maintainer"
+    assignees:
+      - "project-maintainer"
+    commit-message:
+      prefix: "npm"
+      prefix-development: "npm-dev"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "npm"
+    milestone: "Next Release"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Python 依赖 (主项目)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "project-maintainer"
+    assignees:
+      - "project-maintainer"
+    commit-message:
+      prefix: "pip"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # N8N 自动化核心 - Node.js
+  - package-ecosystem: "npm"
+    directory: "/01-n8n-automation-core"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "n8n-team"
+    assignees:
+      - "n8n-team"
+    commit-message:
+      prefix: "n8n-core"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "n8n-core"
+      - "npm"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "n8n"
+        update-types: ["version-update:semver-major"]
+
+  # 火鸟门户 - Composer (PHP)
+  - package-ecosystem: "composer"
+    directory: "/02-firebird-portal"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "firebird-team"
+    assignees:
+      - "firebird-team"
+    commit-message:
+      prefix: "firebird"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "firebird-portal"
+      - "php"
+      - "composer"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # YouTube 下载器 - Python
+  - package-ecosystem: "pip"
+    directory: "/03-youtube-downloader"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "downloader-team"
+    assignees:
+      - "downloader-team"
+    commit-message:
+      prefix: "youtube-dl"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "youtube-downloader"
+      - "python"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "yt-dlp"
+        update-types: ["version-update:semver-major"]
+
+  # AI 智能体 - Python
+  - package-ecosystem: "pip"
+    directory: "/04-ai-agents"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ai-team"
+    assignees:
+      - "ai-team"
+    commit-message:
+      prefix: "ai-agents"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "ai-agents"
+      - "python"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Docker 依赖
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "devops-team"
+    assignees:
+      - "devops-team"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+    allow:
+      - dependency-type: "direct"
+
+  # GitHub Actions 依赖
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "devops-team"
+    assignees:
+      - "devops-team"
+    commit-message:
+      prefix: "actions"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    allow:
+      - dependency-type: "direct"
+
+  # 开发环境 Node.js 依赖 (仅开发依赖)
+  - package-ecosystem: "npm"
+    directory: "/development"
+    schedule:
+      interval: "monthly"
+      day: "first-monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "dev-team"
+    commit-message:
+      prefix: "dev-deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "development"
+      - "npm"
+    allow:
+      - dependency-type: "development"
+
+  # 测试依赖
+  - package-ecosystem: "npm"
+    directory: "/tests"
+    schedule:
+      interval: "monthly"
+      day: "second-monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "qa-team"
+    commit-message:
+      prefix: "test-deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "testing"
+      - "npm"
+    allow:
+      - dependency-type: "development"
+
+  # 文档依赖
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "monthly"
+      day: "third-monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 2
+    reviewers:
+      - "docs-team"
+    commit-message:
+      prefix: "docs-deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "documentation"
+      - "npm"
+    allow:
+      - dependency-type: "development"
