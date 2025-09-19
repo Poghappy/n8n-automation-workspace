@@ -1,0 +1,18 @@
+#! ai-agent-system-ai_agent_data-persistentVolumeClaim.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: ai-agent-system-ai-agent-data
+    namespace: n8n-
+    labels:
+        com.docker.compose.service: ai-agent-system
+        com.docker.compose.volume: ai_agent_data
+spec:
+    accessModes:
+        # TODO would need to check which services use this volume
+        - ReadWriteOnce
+    volumeMode: Filesystem
+    resources:
+        requests:
+            storage: 100Mi

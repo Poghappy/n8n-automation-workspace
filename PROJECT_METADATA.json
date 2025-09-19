@@ -1,0 +1,381 @@
+{
+  "project": {
+    "name": "N8N自动化集成系统",
+    "version": "1.0.0",
+    "description": "基于N8N和火鸟门户系统的自动化工作流集成平台",
+    "created_date": "2025-01-01",
+    "last_updated": "2025-01-16",
+    "maintainer": "N8N火鸟门户技术助手",
+    "license": "MIT",
+    "repository": "local",
+    "tags": ["automation", "n8n", "php", "workflow", "integration"]
+  },
+  "components": {
+    "hawaiihub_portal": {
+      "name": "火鸟门户系统",
+      "type": "web_application",
+      "path": "hawaiihub.net/",
+      "technology_stack": {
+        "backend": "PHP",
+        "database": "MySQL",
+        "template_engine": "Smarty",
+        "web_server": "Apache/Nginx"
+      },
+      "modules": {
+        "admin": {
+          "path": "admin/",
+          "description": "后台管理系统",
+          "submodules": {
+            "house": {
+              "path": "admin/house/",
+              "description": "房产管理模块",
+              "key_files": [
+                "houseCf.php",
+                "houseConfig.php"
+              ],
+              "functions": ["房产信息管理", "积分统计", "配置管理"]
+            },
+            "marry": {
+              "path": "admin/marry/",
+              "description": "婚庆管理模块", 
+              "key_files": [
+                "marryConfig.php",
+                "marryDiyConfig.php"
+              ],
+              "functions": ["婚庆服务管理", "自定义配置", "文件存储配置"]
+            },
+            "member": {
+              "path": "admin/member/",
+              "description": "用户管理模块",
+              "functions": ["用户注册", "权限管理", "用户信息维护"]
+            },
+            "article": {
+              "path": "admin/article/",
+              "description": "内容管理模块",
+              "functions": ["文章发布", "内容审核", "分类管理"]
+            }
+          }
+        },
+        "api": {
+          "path": "api/",
+          "description": "API接口层",
+          "type": "REST_API",
+          "authentication": "API_KEY",
+          "endpoints": ["用户接口", "内容接口", "房产接口", "婚庆接口"]
+        },
+        "templates": {
+          "path": "templates/",
+          "description": "模板系统",
+          "template_engine": "Smarty",
+          "themes": ["info/touch/skin5"]
+        }
+      },
+      "configuration_files": {
+        "payPhoneConfig.php": {
+          "description": "支付配置文件",
+          "contains": ["支付接口配置", "支付方式设置", "费用标准"]
+        },
+        "siteDiyConfig.php": {
+          "description": "站点自定义配置",
+          "contains": ["站点个性化设置", "UI配置", "功能开关"]
+        },
+        "siteConfig.php": {
+          "description": "站点基础配置",
+          "contains": ["基本信息", "数据库配置", "系统参数"]
+        },
+        "weixinConfig.php": {
+          "description": "微信集成配置",
+          "contains": ["微信API配置", "公众号设置", "支付配置"]
+        }
+      },
+      "dependencies": {
+        "php_version": ">=7.4",
+        "mysql_version": ">=5.7",
+        "extensions": ["mysqli", "gd", "curl", "json", "mbstring"]
+      },
+      "security": {
+        "authentication": "session_based",
+        "authorization": "role_based",
+        "data_encryption": "md5_sha1",
+        "sql_injection_protection": "prepared_statements"
+      }
+    },
+    "n8n_core": {
+      "name": "N8N核心系统",
+      "type": "workflow_engine",
+      "path": "n8n-mcp-main/",
+      "technology_stack": {
+        "runtime": "Node.js",
+        "language": "TypeScript",
+        "protocol": "MCP",
+        "database": "PostgreSQL"
+      },
+      "package_info": {
+        "name": "n8n-mcp",
+        "version": "1.0.0",
+        "description": "N8N MCP integration for workflow automation",
+        "main": "dist/index.js",
+        "scripts": {
+          "build": "tsc",
+          "start": "node dist/index.js",
+          "dev": "ts-node src/index.ts",
+          "test": "jest"
+        }
+      },
+      "dependencies": {
+        "n8n": "latest",
+        "typescript": "^4.9.0",
+        "mcp-protocol": "^1.0.0"
+      },
+      "features": [
+        "工作流自动化",
+        "MCP协议集成",
+        "自定义节点开发",
+        "API集成"
+      ]
+    },
+    "n8n_workflows": {
+      "name": "N8N工作流模板",
+      "type": "workflow_templates",
+      "path": "n8n-workflows-main/",
+      "technology_stack": {
+        "runtime": "Node.js",
+        "language": "JavaScript"
+      },
+      "package_info": {
+        "name": "n8n-workflows",
+        "version": "1.0.0",
+        "description": "Collection of N8N workflow templates"
+      },
+      "dependencies": {
+        "axios": "^1.6.0",
+        "lodash": "^4.17.21",
+        "moment": "^2.29.4"
+      },
+      "workflow_categories": [
+        "数据处理",
+        "API集成", 
+        "通知系统",
+        "文件处理",
+        "定时任务"
+      ]
+    },
+    "n8n_deployment": {
+      "name": "N8N部署配置",
+      "type": "deployment_config",
+      "path": "n8n-deployment/",
+      "deployment_methods": {
+        "docker": {
+          "compose_file": "docker-compose.yml",
+          "services": ["n8n", "postgres", "redis"],
+          "volumes": ["n8n_data", "postgres_data"],
+          "networks": ["n8n_network"]
+        },
+        "npm": {
+          "global_install": "npm install n8n -g",
+          "local_install": "npm install n8n",
+          "start_command": "n8n start"
+        }
+      },
+      "configuration": {
+        "database": "PostgreSQL",
+        "queue": "Redis",
+        "storage": "Local/S3",
+        "authentication": "Email/LDAP"
+      },
+      "workflows": {
+        "honolulu_firecrawl_scraper": {
+          "file": "honolulu-firecrawl-scraper.json",
+          "description": "网页抓取工作流",
+          "nodes": ["Webhook", "HTTP Request", "Firecrawl", "Google Sheets"],
+          "use_case": "自动抓取网页内容并保存到表格"
+        }
+      }
+    },
+    "n8n_documentation": {
+      "name": "N8N官方文档",
+      "type": "documentation",
+      "path": "n8n-docs-main/",
+      "structure": {
+        "integrations": {
+          "builtin": {
+            "credentials": [
+              "groq.md",
+              "jotform.md", 
+              "freshservice.md",
+              "mistral.md"
+            ],
+            "app_nodes": [
+              "n8n-nodes-base.kafka.md"
+            ]
+          }
+        },
+        "configuration": [
+          "configuration-methods.md"
+        ]
+      },
+      "credential_types": {
+        "groq": {
+          "type": "API_KEY",
+          "description": "Groq AI服务凭证",
+          "required_fields": ["api_key"]
+        },
+        "jotform": {
+          "type": "API_KEY", 
+          "description": "JotForm表单服务凭证",
+          "required_fields": ["api_key", "api_url"]
+        },
+        "freshservice": {
+          "type": "API_KEY",
+          "description": "Freshservice客服系统凭证", 
+          "required_fields": ["api_key", "domain"]
+        },
+        "mistral": {
+          "type": "API_KEY",
+          "description": "Mistral AI服务凭证",
+          "required_fields": ["api_key"]
+        }
+      }
+    },
+    "community_templates": {
+      "name": "N8N社区模板",
+      "type": "template_library",
+      "path": "awesome-n8n-templates-main/",
+      "categories": {
+        "AI_Integrations": {
+          "description": "AI服务集成模板",
+          "templates": ["ChatGPT集成", "图像处理", "文本分析"]
+        },
+        "Data_Processing": {
+          "description": "数据处理模板", 
+          "templates": ["数据清洗", "格式转换", "批量处理"]
+        },
+        "E-commerce": {
+          "description": "电商集成模板",
+          "templates": ["订单处理", "库存管理", "客户服务"]
+        },
+        "Marketing_Automation": {
+          "description": "营销自动化模板",
+          "templates": ["邮件营销", "社交媒体", "客户关系管理"]
+        },
+        "Social_Media": {
+          "description": "社交媒体集成模板",
+          "templates": ["内容发布", "数据分析", "互动管理"]
+        },
+        "Other_Integrations_and_Use_Cases": {
+          "description": "其他集成案例",
+          "templates": ["HTTP工具使用", "Webhook处理", "定时任务"]
+        }
+      },
+      "key_templates": {
+        "http_tool_introduction": {
+          "file": "Introduction to the HTTP Tool.json",
+          "description": "HTTP工具使用指南",
+          "nodes": ["HTTP Request", "Set", "IF"],
+          "use_case": "演示HTTP请求的基本用法"
+        }
+      }
+    },
+    "awesome_n8n": {
+      "name": "N8N资源库",
+      "type": "resource_collection", 
+      "path": "awesome-n8n-main/",
+      "content_types": [
+        "社区节点",
+        "工作流示例", 
+        "教程资源",
+        "最佳实践"
+      ],
+      "language": "多语言",
+      "maintenance": "社区维护"
+    },
+    "n8n_florwork": {
+      "name": "N8N FlorWork扩展",
+      "type": "custom_extension",
+      "path": "N8N FlorWork/",
+      "purpose": "专用工作流扩展",
+      "components": [
+        "自定义节点",
+        "专用工作流",
+        "凭证管理",
+        "项目文档"
+      ]
+    },
+    "system_configuration": {
+      "name": "系统配置管理",
+      "type": "configuration",
+      "components": {
+        "augment_config": {
+          "path": ".augment/",
+          "description": "Augment系统配置",
+          "files": {
+            "rules/rules.md": "项目规则文档",
+            "rules/templates.md": "模板规范文档"
+          }
+        },
+        "trae_config": {
+          "path": ".trae/",
+          "description": "Trae IDE配置",
+          "files": {
+            "config.json": "Trae配置文件"
+          }
+        }
+      }
+    }
+  },
+  "integration_architecture": {
+    "data_flow": {
+      "source": "火鸟门户系统",
+      "api_layer": "REST API接口",
+      "workflow_engine": "N8N工作流引擎", 
+      "protocol": "MCP协议",
+      "destinations": ["外部服务", "数据库", "通知系统"]
+    },
+    "security_layers": {
+      "authentication": ["API密钥", "OAuth2.0", "JWT令牌"],
+      "authorization": ["基于角色的访问控制", "权限验证"],
+      "data_protection": ["HTTPS传输", "数据加密", "审计日志"]
+    },
+    "monitoring": {
+      "performance": ["响应时间", "吞吐量", "错误率"],
+      "business": ["关键业务指标", "KPI监控"],
+      "system": ["CPU", "内存", "磁盘", "网络"]
+    }
+  },
+  "deployment_environments": {
+    "development": {
+      "docker_compose": "本地Docker环境",
+      "database": "本地PostgreSQL",
+      "n8n_mode": "开发模式"
+    },
+    "staging": {
+      "description": "预发布环境",
+      "purpose": "集成测试和验证"
+    },
+    "production": {
+      "description": "生产环境",
+      "requirements": ["高可用", "负载均衡", "数据备份"]
+    }
+  },
+  "quality_metrics": {
+    "code_coverage": "60%",
+    "documentation_coverage": "80%",
+    "test_automation": "部分自动化",
+    "performance_benchmarks": {
+      "api_response_time": "<200ms",
+      "workflow_execution_time": "<5s",
+      "concurrent_users": "100+"
+    }
+  },
+  "maintenance_schedule": {
+    "daily": ["系统监控", "日志检查"],
+    "weekly": ["性能分析", "安全扫描"],
+    "monthly": ["依赖更新", "备份验证"],
+    "quarterly": ["架构评审", "容量规划"]
+  },
+  "contact_information": {
+    "technical_lead": "N8N火鸟门户技术助手",
+    "documentation_maintainer": "项目团队",
+    "support_channels": ["技术文档", "社区论坛", "GitHub Issues"]
+  }
+}

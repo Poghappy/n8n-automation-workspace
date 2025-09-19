@@ -1,0 +1,6 @@
+# YouTube视频URL列表 - 测试版本
+# 只包含有效的YouTube链接
+
+https://www.youtube.com/watch\?v\=dQw4w9WgXcQ
+https://youtu.be/jNQXAC9IVRw
+https://www.youtube.com/watch\?v\=9bZkp7q19f0

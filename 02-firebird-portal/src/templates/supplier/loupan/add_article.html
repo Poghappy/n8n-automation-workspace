@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=EDGE">
+	<title>新增动态</title>
+	<meta name="keywords" content="{#$cfg_keywords#}">
+	<meta name="description" content="{#$cfg_description#}">
+	<link rel="stylesheet" type="text/css" media="all" href="{#$cfg_staticPath#}css/core/base.css?v={#$cfg_staticVersion#}" />
+	<!-- <link rel="stylesheet" href="{#$cfg_staticPath#}/css/admin/bootstrap.css?v={#$cfg_staticVersion#}"> -->
+	<link rel="stylesheet" href="{#$templets_skin#}css/pub_loupan.css?v={#$cfg_staticVersion#}">
+	<link rel="stylesheet" href="{#$templets_skin#}css/base_info.css?v={#$cfg_staticVersion#}">
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/core/jquery-1.8.3.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/vue.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript">
+		var masterDomain = '{#$cfg_basehost#}',
+			staticPath = '{#$cfg_staticPath#}';
+		var hideFileUrl = '{#$cfg_hideUrl#}';
+		var cookiePre = '{#$cfg_cookiePre#}',
+			cfg_clihost = '{#$cfg_clihost#}';
+		var templets = '{#$templets_skin#}';
+
+		var buildtypenames = ['低层', '高层', '小高层', '联排别墅', '公寓']; //建筑类型
+		// var salestatenames = ['新盘待售','在售','尾盘','售罄']; //销售状态
+		// var existingnames = ['现房','期房']; //销售状态
+		var salestate = 0, //销售状态
+			existing = 0, //楼盘状态
+			buildtype = []; //物业类型
+		var thumbSize = '{#$thumbSize#}',
+			thumbType = "{#$thumbType#}", //缩略图配置
+			addrid = '{#$addrid#}',
+			addrListArr = '{#$addrListArr#}',
+			mapCity = "{#$mapCity#}",
+			subwayCity = 0;
+		var currid = 6;
+		var modelType = 'house';
+		var idArr = (window.location.href).split('?id=')
+		var id = idArr.length>1?idArr[1]:'';
+		var loupanid = '{#$loupanid#}'
+	</script>
+</head>
+
+<body class="w1200">
+	<div id="page">
+		<!-- 头部 -->
+		{#include file="top.html"#}
+		<div class="conbox">
+			{#include file="left.html"#}
+			<!-- 右侧 -->
+			<div class="right_box">
+				<div class="rConBox">
+					<h3 v-if="article_id==''">新增动态</h3>
+					<h3 v-else>修改动态</h3>
+					<div class="formbox huxingFormbox">
+						<form action="" id="form">
+							<div class="inpbox required">
+								<label><em>* </em>资讯标题</label>
+								<div class="inp_div">
+									<div class="inp "><input type="text" name="title" placeholder="请输入资讯标题" data-regex=".{3,60}" value="{#$at_title#}"></div>
+								</div>
+							</div>
+							<div class="inpbox required">
+								<label><em>* </em>资讯内容</label>
+								<div class="inp_div">
+									  <script id="container" name="body" type="text/plain" style="width:85%;height:500px">{#$at_body#}</script>
+								</div>
+							</div>
+
+							<a href="javascript:;" class="submit" @click="submit">确认提交</a>
+						</form>
+						<div class="loading" v-show="loading"><s></s></div>
+					</div>
+				</div>
+			</div>
+			<div class="foot">
+				<div class="foot-bottom">
+					<div class="bottom wrap">
+						版权所有 © {#$smarty.now|date_format:'%Y'#} {#$cfg_shortname#}. All rights reserved.<br />
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div>{#$cfg_statisticscode#}</div>
+</body>
+
+<script type="text/javascript" src="{#$templets_skin#}js/public.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/axios.min.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$templets_skin#}js/add_article.js?v={#$cfg_staticVersion#}"></script>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/json.php?action=lang'></script>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/ueditor/ueditor.config.js?v={#$cfg_staticVersion#}'></script>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/ueditor/ueditor.all.js?v={#$cfg_staticVersion#}'></script>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/ueditor/135editor.js?v={#$cfg_staticVersion#}'></script>
+</html>

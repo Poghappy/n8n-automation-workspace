@@ -1,0 +1,57 @@
+{
+  "name": "huoniao-news-automation",
+  "version": "1.0.0",
+  "description": "火鸟门户新闻自动化工作流 - 基于n8n + Notion + 火鸟门户的智能新闻采集和发布系统",
+  "main": "火鸟门户_API集成模块.js",
+  "scripts": {
+    "setup": "node scripts/setup-environment.js",
+    "validate": "node scripts/validate-workflow.js",
+    "test": "node scripts/test-credentials.js",
+    "test-huoniao": "node scripts/validate-huoniao-api.js",
+    "setup-notion": "node scripts/setup-notion.js",
+    "create-notion-db": "node scripts/create-notion-database.js",
+    "test-notion": "node scripts/test-notion-integration.js",
+    "test-notion-quick": "node scripts/test-notion-integration.js --quick",
+    "setup-credentials": "node scripts/setup-credentials.js",
+    "deploy-config": "node scripts/deploy-config-management.js",
+    "test-config": "node scripts/test-config-management.js",
+    "start": "./start.sh",
+    "dev": "docker-compose -f docker-compose-n8n.yml up",
+    "stop": "docker-compose -f docker-compose-n8n.yml down",
+    "logs": "docker-compose -f docker-compose-n8n.yml logs -f"
+  },
+  "keywords": [
+    "n8n",
+    "automation",
+    "news",
+    "huoniao",
+    "notion",
+    "ai",
+    "workflow",
+    "rss",
+    "content-management"
+  ],
+  "author": "AI Assistant",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^24.16.2",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.0",
+    "@notionhq/client": "^2.2.15"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/huoniao-news-automation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/huoniao-news-automation/issues"
+  },
+  "homepage": "https://github.com/your-username/huoniao-news-automation#readme"
+}

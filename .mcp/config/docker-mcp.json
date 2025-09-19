@@ -1,0 +1,29 @@
+{
+  "command": "uvx",
+  "args": [
+    "docker-mcp"
+  ],
+  "env": {
+    "DOCKER_HOST": "unix:///var/run/docker.sock"
+  },
+  "disabled": false,
+  "description": "Docker MCP Server for container management operations",
+  "version": "latest",
+  "features": [
+    "container_creation",
+    "container_management", 
+    "compose_deployment",
+    "logs_retrieval",
+    "container_listing"
+  ],
+  "requirements": {
+    "docker": ">=20.10.0",
+    "python": ">=3.12",
+    "uv": ">=0.1.0"
+  },
+  "security": {
+    "docker_socket_access": true,
+    "container_isolation": true,
+    "resource_limits": true
+  }
+}

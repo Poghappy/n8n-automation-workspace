@@ -1,0 +1,238 @@
+{
+  "name": "檀香山网站爬虫 - 无需API",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours", 
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "id": "schedule-trigger",
+      "name": "每4小时执行"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "site1",
+              "name": "网站列表",
+              "value": [
+                {
+                  "name": "Hawaii Forum",
+                  "url": "https://www.hawaiiforum.com/",
+                  "selector": ".topic-title, .post-content"
+                },
+                {
+                  "name": "Honolulu Magazine",
+                  "url": "https://www.honolulumagazine.com/",
+                  "selector": ".article-title, .article-excerpt"
+                },
+                {
+                  "name": "Star Advertiser Community",
+                  "url": "https://www.staradvertiser.com/category/community/",
+                  "selector": ".headline, .summary"
+                }
+              ],
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [400, 300],
+      "id": "set-websites",
+      "name": "设置目标网站"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [600, 300],
+      "id": "split-websites",
+      "name": "分批处理网站"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 30000,
+          "redirect": {
+            "redirect": {}
+          }
+        },
+        "responseFormat": "string"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 300],
+      "id": "fetch-webpage",
+      "name": "获取网页内容"
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "titles",
+              "cssSelector": "={{ $json.selector.split(',')[0] }}",
+              "returnArray": true
+            },
+            {
+              "key": "contents", 
+              "cssSelector": "={{ $json.selector.split(',')[1] }}",
+              "returnArray": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1.2,
+      "position": [1000, 300],
+      "id": "extract-content",
+      "name": "提取内容"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理提取的数据\nconst items = [];\nconst titles = $input.first().json.titles || [];\nconst contents = $input.first().json.contents || [];\nconst siteName = $input.first().json.name;\nconst siteUrl = $input.first().json.url;\n\nfor (let i = 0; i < Math.min(titles.length, contents.length); i++) {\n  if (titles[i] && contents[i]) {\n    items.push({\n      site: siteName,\n      url: siteUrl,\n      title: titles[i].trim(),\n      content: contents[i].trim(),\n      timestamp: new Date().toISOString()\n    });\n  }\n}\n\nreturn items.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "id": "process-data",
+      "name": "处理数据"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.title + ' ' + $json.content }}",
+              "rightValue": "需要|寻找|问题|建议|推荐|痛点|困难|need|looking|problem|issue|recommend|help|advice",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1400, 300],
+      "id": "filter-relevant",
+      "name": "过滤相关内容"
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "message": "你是檀香山社区需求分析专家。分析以下内容，提取用户需求和痛点。返回JSON格式：{\"需求类型\": \"\", \"具体需求\": \"\", \"痛点描述\": \"\", \"目标用户\": \"\", \"商业机会\": \"\", \"优先级\": \"高/中/低\"}"
+            },
+            {
+              "role": "user",
+              "message": "来源网站: {{ $json.site }}\\n标题: {{ $json.title }}\\n内容: {{ $json.content }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [1600, 300],
+      "id": "ai-analyze",
+      "name": "AI分析需求"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "your-google-sheet-id",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0", 
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "时间": "={{ $json.timestamp }}",
+            "来源网站": "={{ $json.site }}",
+            "标题": "={{ $json.title }}",
+            "内容摘要": "={{ $json.content.substring(0, 200) }}",
+            "AI分析": "={{ $json.choices[0].message.content }}",
+            "原始URL": "={{ $json.url }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [1800, 300],
+      "id": "save-results",
+      "name": "保存分析结果"
+    }
+  ],
+  "connections": {
+    "每4小时执行": {
+      "main": [
+        [{"node": "设置目标网站", "type": "main", "index": 0}]
+      ]
+    },
+    "设置目标网站": {
+      "main": [
+        [{"node": "分批处理网站", "type": "main", "index": 0}]
+      ]
+    },
+    "分批处理网站": {
+      "main": [
+        [{"node": "获取网页内容", "type": "main", "index": 0}]
+      ]
+    },
+    "获取网页内容": {
+      "main": [
+        [{"node": "提取内容", "type": "main", "index": 0}]
+      ]
+    },
+    "提取内容": {
+      "main": [
+        [{"node": "处理数据", "type": "main", "index": 0}]
+      ]
+    },
+    "处理数据": {
+      "main": [
+        [{"node": "过滤相关内容", "type": "main", "index": 0}]
+      ]
+    },
+    "过滤相关内容": {
+      "main": [
+        [{"node": "AI分析需求", "type": "main", "index": 0}]
+      ]
+    },
+    "AI分析需求": {
+      "main": [
+        [{"node": "保存分析结果", "type": "main", "index": 0}]
+      ]
+    }
+  }
+}

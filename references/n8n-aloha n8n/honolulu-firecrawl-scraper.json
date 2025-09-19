@@ -1,0 +1,324 @@
+{
+  "name": "檀香山社区Firecrawl智能爬虫",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "id": "schedule-trigger",
+      "name": "每6小时执行"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "target_sites",
+              "name": "目标网站列表",
+              "value": [
+                {
+                  "name": "Hawaii Reddit",
+                  "url": "https://www.reddit.com/r/Hawaii/",
+                  "search_terms": ["need", "looking for", "problem", "issue", "recommend", "help"]
+                },
+                {
+                  "name": "Honolulu Reddit", 
+                  "url": "https://www.reddit.com/r/Honolulu/",
+                  "search_terms": ["需要", "寻找", "问题", "建议", "推荐"]
+                },
+                {
+                  "name": "Hawaii Forum",
+                  "url": "https://www.hawaiiforum.com/",
+                  "search_terms": ["痛点", "困难", "需求", "建议"]
+                },
+                {
+                  "name": "Yelp Hawaii",
+                  "url": "https://www.yelp.com/hawaii",
+                  "search_terms": ["review", "complaint", "issue", "problem"]
+                },
+                {
+                  "name": "TripAdvisor Hawaii",
+                  "url": "https://www.tripadvisor.com/Tourism-g28932-Hawaii-Vacations.html",
+                  "search_terms": ["problem", "issue", "need", "difficult"]
+                }
+              ],
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [400, 300],
+      "id": "set-target-sites",
+      "name": "设置目标网站"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [600, 300],
+      "id": "split-sites",
+      "name": "分批处理网站"
+    },
+    {
+      "parameters": {
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Authorization",
+          "value": "Bearer YOUR_FIRECRAWL_API_KEY"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "formats",
+              "value": ["markdown", "json"]
+            },
+            {
+              "name": "jsonOptions",
+              "value": {
+                "prompt": "提取用户需求、痛点、问题和建议。重点关注檀香山本地生活相关的内容。返回JSON格式：{\"需求类型\": \"\", \"具体需求\": \"\", \"痛点描述\": \"\", \"情感倾向\": \"\", \"紧急程度\": \"\", \"目标用户\": \"\", \"商业机会\": \"\"}"
+              }
+            },
+            {
+              "name": "onlyMainContent",
+              "value": true
+            },
+            {
+              "name": "timeout",
+              "value": 60000
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 300],
+      "id": "firecrawl-scrape",
+      "name": "Firecrawl智能抓取"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1000, 300],
+      "id": "filter-success",
+      "name": "过滤成功结果"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理Firecrawl返回的数据\nconst data = $input.first().json.data;\nconst siteName = $input.first().json.name;\nconst siteUrl = $input.first().json.url;\n\nconst results = [];\n\n// 处理markdown内容\nif (data.markdown) {\n  const markdown = data.markdown;\n  \n  // 使用关键词过滤相关内容\n  const keywords = ['need', 'looking for', 'problem', 'issue', 'recommend', 'help', '需要', '寻找', '问题', '建议', '推荐', '痛点', '困难'];\n  \n  const lines = markdown.split('\\n');\n  const relevantLines = lines.filter(line => \n    keywords.some(keyword => \n      line.toLowerCase().includes(keyword.toLowerCase())\n    )\n  );\n  \n  if (relevantLines.length > 0) {\n    results.push({\n      site: siteName,\n      url: siteUrl,\n      content_type: 'markdown',\n      content: relevantLines.join('\\n'),\n      timestamp: new Date().toISOString(),\n      ai_analysis: data.json || null\n    });\n  }\n}\n\n// 处理AI提取的JSON数据\nif (data.json) {\n  results.push({\n    site: siteName,\n    url: siteUrl,\n    content_type: 'ai_extracted',\n    content: JSON.stringify(data.json, null, 2),\n    timestamp: new Date().toISOString(),\n    ai_analysis: data.json\n  });\n}\n\nreturn results.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "id": "process-firecrawl-data",
+      "name": "处理Firecrawl数据"
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "message": "你是檀香山社区需求分析专家。分析以下内容，识别用户需求和痛点，特别关注夏威夷本地生活相关的内容。返回详细的JSON分析：{\"需求分类\": \"\", \"具体需求\": \"\", \"痛点描述\": \"\", \"情感强度\": \"1-10\", \"紧急程度\": \"低/中/高\", \"目标用户群体\": \"\", \"潜在解决方案\": \"\", \"商业机会评估\": \"\", \"关键词标签\": []}"
+            },
+            {
+              "role": "user",
+              "message": "网站: {{ $json.site }}\\n内容: {{ $json.content }}\\n已有AI分析: {{ $json.ai_analysis }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [1400, 300],
+      "id": "enhanced-ai-analysis",
+      "name": "增强AI分析"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "your-google-sheet-id",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "时间戳": "={{ $json.timestamp }}",
+            "来源网站": "={{ $json.site }}",
+            "网站URL": "={{ $json.url }}",
+            "内容类型": "={{ $json.content_type }}",
+            "原始内容": "={{ $json.content.substring(0, 500) }}",
+            "Firecrawl分析": "={{ JSON.stringify($json.ai_analysis) }}",
+            "增强AI分析": "={{ $json.choices[0].message.content }}",
+            "处理状态": "已分析"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [1600, 300],
+      "id": "save-to-sheets",
+      "name": "保存到Google Sheets"
+    },
+    {
+      "parameters": {
+        "url": "https://api.firecrawl.dev/v1/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Authorization",
+          "value": "Bearer YOUR_FIRECRAWL_API_KEY"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "檀香山 夏威夷 生活 问题 需求 痛点 建议 site:reddit.com OR site:yelp.com OR site:tripadvisor.com"
+            },
+            {
+              "name": "limit",
+              "value": 10
+            },
+            {
+              "name": "formats",
+              "value": ["markdown", "json"]
+            },
+            {
+              "name": "jsonOptions",
+              "value": {
+                "prompt": "从搜索结果中提取檀香山本地生活相关的用户需求和痛点"
+              }
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 500],
+      "id": "firecrawl-search",
+      "name": "Firecrawl智能搜索"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "🏝️ 檀香山社区爬虫报告\\n\\n📊 本次抓取统计：\\n- 处理网站：{{ $json.site }}\\n- 发现需求：{{ $json.ai_analysis ? Object.keys($json.ai_analysis).length : 0 }}个\\n- 时间：{{ $json.timestamp }}\\n\\n🔍 主要发现：\\n{{ $json.choices[0].message.content.substring(0, 200) }}...\\n\\n📋 详细数据已保存到Google Sheets"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1800, 300],
+      "id": "telegram-notification",
+      "name": "Telegram通知"
+    }
+  ],
+  "connections": {
+    "每6小时执行": {
+      "main": [
+        [{"node": "设置目标网站", "type": "main", "index": 0}]
+      ]
+    },
+    "设置目标网站": {
+      "main": [
+        [
+          {"node": "分批处理网站", "type": "main", "index": 0},
+          {"node": "Firecrawl智能搜索", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "分批处理网站": {
+      "main": [
+        [{"node": "Firecrawl智能抓取", "type": "main", "index": 0}]
+      ]
+    },
+    "Firecrawl智能抓取": {
+      "main": [
+        [{"node": "过滤成功结果", "type": "main", "index": 0}]
+      ]
+    },
+    "过滤成功结果": {
+      "main": [
+        [{"node": "处理Firecrawl数据", "type": "main", "index": 0}]
+      ]
+    },
+    "处理Firecrawl数据": {
+      "main": [
+        [{"node": "增强AI分析", "type": "main", "index": 0}]
+      ]
+    },
+    "增强AI分析": {
+      "main": [
+        [
+          {"node": "保存到Google Sheets", "type": "main", "index": 0},
+          {"node": "Telegram通知", "type": "main", "index": 0}
+        ]
+      ]
+    }
+  }
+}

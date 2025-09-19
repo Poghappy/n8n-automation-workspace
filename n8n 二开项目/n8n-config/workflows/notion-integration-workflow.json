@@ -1,0 +1,560 @@
+{
+  "name": "火鸟门户新闻工作流-Notion集成版",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "定时触发器",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.rss_url}}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "rss-collector",
+      "name": "RSS内容采集",
+      "type": "n8n-nodes-base.rss",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 基于现有的HuoNiaoContentProcessor进行智能内容处理\nconst items = $input.all();\nconst processedItems = [];\n\nfor (const item of items) {\n  try {\n    // 基础数据提取和清理\n    const processedItem = {\n      标题: item.json.title?.substring(0, 60) || '',\n      短标题: item.json.title?.substring(0, 36) || '',\n      内容: item.json.content || item.json.description || '',\n      摘要: item.json.description?.substring(0, 255) || '',\n      \n      // 来源信息\n      来源: item.json.source || 'RSS采集',\n      作者: item.json.author || 'AI采集',\n      原始URL: item.json.link || '',\n      来源网址: item.json.link || '',\n      发布日期: item.json.pubDate || new Date().toISOString(),\n      \n      // 分类和标签\n      分类ID: 1, // 默认科技资讯\n      分类名称: '科技资讯',\n      关键词: item.json.categories || [],\n      \n      // 媒体资源\n      缩略图URL: item.json.enclosure?.url || '',\n      图片集合: '',\n      \n      // 状态和质量\n      质量分数: 85, // 默认分数，后续AI评估\n      处理状态: '待处理',\n      审核状态: '未审核',\n      \n      // 显示属性\n      标题颜色: '',\n      附加属性: ['推荐'],\n      排序权重: 1,\n      \n      // 系统字段\n      城市ID: 1,\n      评论开关: true,\n      跳转地址: '',\n      \n      // 火鸟门户专用字段\n      火鸟文章ID: 0,\n      阅读次数: 0,\n      发布人ID: 1,\n      \n      // 处理记录\n      错误信息: '',\n      处理时间: Date.now(),\n      AI评估结果: '',\n      重复检查结果: '',\n      \n      // 原始数据保留\n      _原始数据: item.json\n    };\n    \n    // 内容质量检查\n    if (processedItem.标题.length > 10 && processedItem.内容.length > 50) {\n      processedItems.push({ json: processedItem });\n    }\n    \n  } catch (error) {\n    console.error('处理项目时出错:', error);\n    // 记录错误但继续处理其他项目\n  }\n}\n\nreturn processedItems;"
+      },
+      "id": "content-processor",
+      "name": "智能内容处理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": "f352dd44-bdcc-4a20-85da-84361489a1e0",
+        "title": "={{$json.标题}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "短标题",
+              "type": "rich_text",
+              "richTextValue": "={{$json.短标题 || ''}}"
+            },
+            {
+              "key": "内容",
+              "type": "rich_text",
+              "richTextValue": "={{$json.内容}}"
+            },
+            {
+              "key": "摘要",
+              "type": "rich_text",
+              "richTextValue": "={{$json.摘要 || ''}}"
+            },
+            {
+              "key": "来源",
+              "type": "select",
+              "selectValue": "={{$json.来源 || 'API采集'}}"
+            },
+            {
+              "key": "作者",
+              "type": "rich_text",
+              "richTextValue": "={{$json.作者 || 'AI采集'}}"
+            },
+            {
+              "key": "原始URL",
+              "type": "url",
+              "urlValue": "={{$json.原始URL || ''}}"
+            },
+            {
+              "key": "来源网址",
+              "type": "url",
+              "urlValue": "={{$json.来源网址 || ''}}"
+            },
+            {
+              "key": "发布日期",
+              "type": "date",
+              "dateValue": "={{$json.发布日期 || new Date().toISOString()}}"
+            },
+            {
+              "key": "分类ID",
+              "type": "number",
+              "numberValue": "={{$json.分类ID || 1}}"
+            },
+            {
+              "key": "分类名称",
+              "type": "select",
+              "selectValue": "={{$json.分类名称 || '科技资讯'}}"
+            },
+            {
+              "key": "关键词",
+              "type": "multi_select",
+              "multiSelectValue": "={{$json.关键词 && Array.isArray($json.关键词) ? $json.关键词 : []}}"
+            },
+            {
+              "key": "缩略图URL",
+              "type": "url",
+              "urlValue": "={{$json.缩略图URL || ''}}"
+            },
+            {
+              "key": "图片集合",
+              "type": "rich_text",
+              "richTextValue": "={{$json.图片集合 || ''}}"
+            },
+            {
+              "key": "质量分数",
+              "type": "number",
+              "numberValue": "={{$json.质量分数 || 0}}"
+            },
+            {
+              "key": "处理状态",
+              "type": "select",
+              "selectValue": "已存储"
+            },
+            {
+              "key": "审核状态",
+              "type": "select",
+              "selectValue": "未审核"
+            },
+            {
+              "key": "标题颜色",
+              "type": "rich_text",
+              "richTextValue": "={{$json.标题颜色 || ''}}"
+            },
+            {
+              "key": "附加属性",
+              "type": "multi_select",
+              "multiSelectValue": "={{$json.附加属性 && Array.isArray($json.附加属性) ? $json.附加属性 : ['推荐']}}"
+            },
+            {
+              "key": "排序权重",
+              "type": "number",
+              "numberValue": "={{$json.排序权重 || 1}}"
+            },
+            {
+              "key": "城市ID",
+              "type": "number",
+              "numberValue": "={{$json.城市ID || 1}}"
+            },
+            {
+              "key": "评论开关",
+              "type": "checkbox",
+              "checkboxValue": "={{$json.评论开关 !== false}}"
+            },
+            {
+              "key": "跳转地址",
+              "type": "url",
+              "urlValue": "={{$json.跳转地址 || ''}}"
+            },
+            {
+              "key": "火鸟文章ID",
+              "type": "number",
+              "numberValue": "={{$json.火鸟文章ID || 0}}"
+            },
+            {
+              "key": "阅读次数",
+              "type": "number",
+              "numberValue": "={{$json.阅读次数 || 0}}"
+            },
+            {
+              "key": "发布人ID",
+              "type": "number",
+              "numberValue": "={{$json.发布人ID || 1}}"
+            },
+            {
+              "key": "错误信息",
+              "type": "rich_text",
+              "richTextValue": "={{$json.错误信息 || ''}}"
+            },
+            {
+              "key": "处理时间",
+              "type": "number",
+              "numberValue": "={{$json.处理时间 || Date.now()}}"
+            },
+            {
+              "key": "AI评估结果",
+              "type": "rich_text",
+              "richTextValue": "={{$json.AI评估结果 || ''}}"
+            },
+            {
+              "key": "重复检查结果",
+              "type": "rich_text",
+              "richTextValue": "={{$json.重复检查结果 || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "iconType": "emoji",
+          "iconEmoji": "📰"
+        }
+      },
+      "id": "notion-storage",
+      "name": "Notion存储节点",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "20a4bada-9d03-4343-af6d-cd77f5a72bac",
+          "name": "Notion API凭据"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 准备火鸟门户发布数据\nconst items = $input.all();\nconst publishItems = [];\n\nfor (const item of items) {\n  try {\n    // 从Notion存储结果中提取数据\n    const notionData = item.json;\n    \n    // 构建火鸟门户API数据\n    const firebird_data = {\n      // API基础参数\n      service: \"article\",\n      action: \"put\",\n      \n      // 内容字段 - 严格按照官方API文档\n      title: notionData.properties?.标题?.title?.[0]?.plain_text?.substring(0, 60) || '',\n      typeid: notionData.properties?.分类ID?.number || 1,\n      body: notionData.properties?.内容?.rich_text?.[0]?.plain_text || '',\n      writer: notionData.properties?.作者?.rich_text?.[0]?.plain_text || 'AI采集',\n      source: notionData.properties?.来源?.select?.name || 'AI采集',\n      sourceurl: notionData.properties?.原始URL?.url || '',\n      keywords: notionData.properties?.关键词?.multi_select?.map(k => k.name).join(',').substring(0, 50) || '',\n      description: notionData.properties?.摘要?.rich_text?.[0]?.plain_text?.substring(0, 255) || '',\n      litpic: notionData.properties?.缩略图URL?.url || '',\n      \n      // 系统字段\n      cityid: 1,\n      arcrank: 1,\n      weight: notionData.properties?.排序权重?.number || 1,\n      notpost: notionData.properties?.评论开关?.checkbox ? 0 : 1,\n      color: notionData.properties?.标题颜色?.rich_text?.[0]?.plain_text || '',\n      flag: 'r', // 推荐标记\n      \n      // 移动端内容\n      mbody: notionData.properties?.内容?.rich_text?.[0]?.plain_text || '',\n      \n      // 可选字段\n      subtitle: notionData.properties?.短标题?.rich_text?.[0]?.plain_text?.substring(0, 36) || '',\n      redirecturl: notionData.properties?.跳转地址?.url || '',\n      \n      // 保存Notion页面ID用于后续更新\n      _notion_page_id: notionData.id\n    };\n    \n    publishItems.push({ json: firebird_data });\n    \n  } catch (error) {\n    console.error('准备发布数据时出错:', error);\n  }\n}\n\nreturn publishItems;"
+      },
+      "id": "publish-prep",
+      "name": "发布数据准备",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://hawaiihub.net/include/ajax.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            },
+            {
+              "name": "Cookie",
+              "value": "={{$env.HUONIAO_FULL_COOKIES}}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-automation/1.0"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/plain, */*"
+            },
+            {
+              "name": "X-Requested-With",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "service",
+              "value": "={{$json.service}}"
+            },
+            {
+              "name": "action",
+              "value": "={{$json.action}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "typeid",
+              "value": "={{$json.typeid}}"
+            },
+            {
+              "name": "body",
+              "value": "={{$json.body}}"
+            },
+            {
+              "name": "writer",
+              "value": "={{$json.writer}}"
+            },
+            {
+              "name": "source",
+              "value": "={{$json.source}}"
+            },
+            {
+              "name": "sourceurl",
+              "value": "={{$json.sourceurl}}"
+            },
+            {
+              "name": "keywords",
+              "value": "={{$json.keywords}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "litpic",
+              "value": "={{$json.litpic}}"
+            },
+            {
+              "name": "cityid",
+              "value": "={{$json.cityid}}"
+            },
+            {
+              "name": "arcrank",
+              "value": "={{$json.arcrank}}"
+            },
+            {
+              "name": "weight",
+              "value": "={{$json.weight}}"
+            },
+            {
+              "name": "notpost",
+              "value": "={{$json.notpost}}"
+            },
+            {
+              "name": "color",
+              "value": "={{$json.color}}"
+            },
+            {
+              "name": "flag",
+              "value": "={{$json.flag}}"
+            },
+            {
+              "name": "mbody",
+              "value": "={{$json.mbody}}"
+            },
+            {
+              "name": "subtitle",
+              "value": "={{$json.subtitle}}"
+            },
+            {
+              "name": "redirecturl",
+              "value": "={{$json.redirecturl}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+          },
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "id": "firebird-publish",
+      "name": "火鸟门户发布",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1340,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "huoniao_api_credentials",
+          "name": "火鸟门户API凭据"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 更新Notion记录状态\nconst items = $input.all();\nconst updateItems = [];\n\nfor (const item of items) {\n  try {\n    const publishResult = item.json;\n    \n    // 检查发布结果\n    if (publishResult.state === 100) {\n      // 发布成功，准备更新Notion状态\n      updateItems.push({\n        json: {\n          notion_page_id: publishResult._notion_page_id,\n          update_data: {\n            处理状态: '已发布',\n            火鸟文章ID: publishResult.info || 0,\n            错误信息: ''\n          }\n        }\n      });\n    } else {\n      // 发布失败，记录错误\n      updateItems.push({\n        json: {\n          notion_page_id: publishResult._notion_page_id,\n          update_data: {\n            处理状态: '已拒绝',\n            错误信息: `发布失败: ${publishResult.info || '未知错误'}`\n          }\n        }\n      });\n    }\n    \n  } catch (error) {\n    console.error('处理发布结果时出错:', error);\n  }\n}\n\nreturn updateItems;"
+      },
+      "id": "status-update-prep",
+      "name": "状态更新准备",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "page",
+        "operation": "update",
+        "pageId": "={{$json.notion_page_id}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "处理状态",
+              "type": "select",
+              "selectValue": "={{$json.update_data.处理状态}}"
+            },
+            {
+              "key": "火鸟文章ID",
+              "type": "number",
+              "numberValue": "={{$json.update_data.火鸟文章ID}}"
+            },
+            {
+              "key": "错误信息",
+              "type": "rich_text",
+              "richTextValue": "={{$json.update_data.错误信息}}"
+            }
+          ]
+        }
+      },
+      "id": "notion-status-update",
+      "name": "Notion状态更新",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "20a4bada-9d03-4343-af6d-cd77f5a72bac",
+          "name": "Notion API凭据"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 工作流执行日志记录\nconst items = $input.all();\nconst logData = {\n  workflow_id: 'notion-integration-workflow',\n  execution_time: new Date().toISOString(),\n  total_items: items.length,\n  success_count: 0,\n  error_count: 0,\n  items: []\n};\n\nfor (const item of items) {\n  try {\n    if (item.json.update_data?.处理状态 === '已发布') {\n      logData.success_count++;\n    } else {\n      logData.error_count++;\n    }\n    \n    logData.items.push({\n      notion_page_id: item.json.notion_page_id,\n      status: item.json.update_data?.处理状态,\n      error: item.json.update_data?.错误信息\n    });\n    \n  } catch (error) {\n    logData.error_count++;\n    console.error('记录日志时出错:', error);\n  }\n}\n\n// 计算成功率\nlogData.success_rate = logData.total_items > 0 ? \n  (logData.success_count / logData.total_items * 100).toFixed(2) + '%' : '0%';\n\nconsole.log('工作流执行完成:', JSON.stringify(logData, null, 2));\n\nreturn [{ json: logData }];"
+      },
+      "id": "workflow-logger",
+      "name": "工作流日志记录",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "定时触发器": {
+      "main": [
+        [
+          {
+            "node": "RSS内容采集",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS内容采集": {
+      "main": [
+        [
+          {
+            "node": "智能内容处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "智能内容处理": {
+      "main": [
+        [
+          {
+            "node": "Notion存储节点",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion存储节点": {
+      "main": [
+        [
+          {
+            "node": "发布数据准备",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "发布数据准备": {
+      "main": [
+        [
+          {
+            "node": "火鸟门户发布",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "火鸟门户发布": {
+      "main": [
+        [
+          {
+            "node": "状态更新准备",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "状态更新准备": {
+      "main": [
+        [
+          {
+            "node": "Notion状态更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion状态更新": {
+      "main": [
+        [
+          {
+            "node": "工作流日志记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-08-23T10:14:00.000Z",
+      "updatedAt": "2025-08-23T10:14:00.000Z",
+      "id": "notion-integration",
+      "name": "Notion集成"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-08-23T10:14:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,173 @@
+ <!-- 切换标题 -->
+ <template v-if="modCon.id == 11">
+    <!-- 标签页 -->
+    <!-- :style="'background-color:' +modCon.content.style.bgColor+ ';'"  -->
+    <div :class="['labsConBox',{'currEditPart':currEditPart == 11 && modInd == currEditInd}]" v-show="modCon.content.labelShow"  @click.stop="toEditPart(modCon,modInd,11)" :style="getObjStyle(modCon.content,'labMargin')">
+        <el-popover popper-class="alertPop" :visible-arrow="false" :value="currEditInd == modInd && showPop && currEditPart == 11" @show="showPop = true">
+            <div class="text_con">
+                <h4>确认删除该组件？</h4>
+            </div>
+            <div class="alertBtn">
+                <a href="javascript:;" class="cancel" @click=" showPop= false"><s></s><span>取消</span></a>
+                <a href="javascript:;" class="sure" @click="delModBox(modInd,11)"><s></s><span>确定</span></a>
+            </div>
+            <div :class="['del_btn',{'show':currEditInd == modInd && showPop && currEditPart == modCon.id}]" slot="reference" ><s></s>删除</div>
+        </el-popover>
+        <!-- labNum3  个数小于3 -->
+        <div  :class="['labBox', 'labBox' + modCon.content.styletype, {'labNum3' : modCon.content.labsArr && modCon.content.labsArr.length <= 3},{'moreLen': modCon.content.labsArr && modCon.content.labsArr.length > 3 && modCon.content.more && modCon.content.more.show}, {'labCenter' : modCon.content.labsArr && modCon.content.labsArr.length <= 3 && modCon.content.position == 'center' }] " :style="'padding-left:'+(modCon.content.style.marginLeft / 2)+'px;'">
+            <ul>
+                <li :class="[{'on_chose': labelChose == ind}]" @click.stop=" changeEditlabel(modInd,ind, (item.type == 2 ? 0 : '')) " v-for="(item,ind) in modCon.content.labsArr">
+                    <a href="javascript:;" class="tab">
+                        <h3>
+                            <span v-if="item.title && item.title.type == 'text'" :style="'color:' +(labelChose == ind ? checkBgColor(modCon.content.style.chose_title,(modCon.content.styletype !== 1 ? modCon.content.style.chose_opacity : '100')) : checkBgColor(modCon.content.style.title,modCon.content.style.opacity))+ ';'">{{item.title.text ? item.title.text : ('标签' + (ind + 1))}}</span>
+                            <span class="tit_img" v-else><img :src="item.title.path ? (item.title.path + '?v=' + randomNum) : '/static/images/404.jpg'" crossOrigin='anonymous' onerror="this.src='/static/images/404.jpg'" alt=""></span>
+                            <s class="line" :style="'background:'+ modCon.content.style.chose_block +';'" v-if="modCon.content.styletype !== 1 && modCon.content.styletype !== 5">
+                                <!-- <em v-if="modCon.content.styletype == 2" :style="'filter: drop-shadow(20px 0 0 '+ modCon.content.style.chose_block +'); transform: translateX(-100%);'"></em> -->
+
+                                <svg xmlns="http://www.w3.org/2000/svg" v-if="modCon.content.styletype == 2 && labelChose == ind" xmlns:xlink="http://www.w3.org/1999/xlink" width="20px" height="24px"  viewBox="0 16 40 12"> <defs> <linearGradient id="PSgrad_0" x1="0%" x2="100%" y1="0%" y2="0%"> <stop offset="0%" :stop-color="modCon.content.style.chose_block ? modCon.content.style.chose_block : 'rgb(247,95,66)'" stop-opacity="1" /> <stop offset="100%" :stop-color="modCon.content.style.chose_block ? modCon.content.style.chose_block : 'rgb(242,42,24)'" stop-opacity="1" /> </linearGradient> </defs> <path fill-rule="evenodd"  fill="url(#PSgrad_0)" d="M19.998,12.001 C13.073,12.001 4.624,9.392 0.746,5.022 C0.147,4.348 -0.109,3.449 0.043,2.556 C0.196,1.658 0.742,0.888 1.537,0.447 L1.688,0.363 C2.121,0.123 2.611,-0.004 3.104,-0.004 C3.956,-0.004 4.780,0.368 5.364,1.016 C8.067,4.014 14.908,5.876 19.998,5.876 C25.088,5.876 31.929,4.014 34.633,1.016 C35.216,0.368 36.040,-0.004 36.892,-0.004 C37.385,-0.004 37.875,0.123 38.308,0.363 L38.458,0.447 C39.256,0.888 39.799,1.658 39.953,2.556 C40.104,3.449 39.849,4.348 39.250,5.022 C35.372,9.392 26.922,12.001 19.998,12.001 Z"/> </svg>
+                            </s>
+
+                            <!-- 样式5的色块 -->
+                            <div class="colorBlock" v-if="modCon.content.styletype == 5 && labelChose == ind" >
+                                <div class="smBlock">
+                                    <!-- <img src="/static/images/admin/siteConfigPage/labIcon1.png" :style=" modCon.content.style.chose_block ? 'filter: drop-shadow(16px 0 0 '+ modCon.content.style.chose_block +'); transform: translateX(-100%);' : ''"> -->
+
+                                    <svg  xmlns="http://www.w3.org/2000/svg"
+                                        xmlns:xlink="http://www.w3.org/1999/xlink"
+                                        width="16px" height="16px"  viewBox="0 0 30 30"  preserveAspectRatio="xMinYMin meet">
+                                        <defs>
+                                        <linearGradient id="PSgrad_0" x1="0%" x2="65.606%" y1="75.471%" y2="0%">
+                                        <stop offset="0%" :stop-color="modCon.content.style.chose_block ? modCon.content.style.chose_block : 'rgb(255,121,48)'" stop-opacity="0.10196" />
+                                        <stop offset="100%" :stop-color="modCon.content.style.chose_block ? modCon.content.style.chose_block : 'rgb(249,61,47)'" stop-opacity="1" />
+                                        </linearGradient>
+
+                                        </defs>
+                                        <path fill-rule="evenodd"  opacity="0.329" fill="url(#PSgrad_0)"
+                                        d="M16.995,-0.004 C25.279,-0.004 29.995,4.711 29.995,12.996 C29.995,21.280 21.277,29.995 12.995,29.995 C4.712,29.995 -0.007,25.280 -0.007,16.996 C-0.007,8.711 8.710,-0.004 16.995,-0.004 Z"/>
+                                    </svg>
+                                </div>
+                                <div class="laBlock">
+                                    <!-- <img src="/static/images/admin/siteConfigPage/labIcon2.png" :style=" modCon.content.style.chose_block ? 'filter: drop-shadow(40px 0 0 '+ modCon.content.style.chose_block +'); transform: translateX(-100%);' : ''"> -->
+                                    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 79 79">
+                                        <defs>
+                                          <linearGradient id="linear-gradient" x1="722.9" y1="511" x2="716.069" y2="431.969" gradientUnits="userSpaceOnUse">
+                                            <stop offset="0" :stop-color="modCon.content.style.chose_block ? modCon.content.style.chose_block : '#ff7930'" stop-opacity="0"/>
+                                            <stop offset="1" :stop-color="modCon.content.style.chose_block ? modCon.content.style.chose_block : '#f93d2f'"/>
+                                          </linearGradient>
+                                        </defs>
+                                        <path  class="cls-1" d="M713.382,507.714q-57.825-15.495-15.494-57.827t57.827,15.5Q771.207,523.207,713.382,507.714Z" transform="translate(-680 -432)"/>
+                                      </svg>
+                                </div>
+                            </div>
+                        </h3>
+                        <span class="stit" :style="(labelChose == ind  ? getObjStyle(modCon.content,'labStyle') : getObjStyle(modCon.content,'labStyle1'))" v-if="modCon.content.styletype == 1 || modCon.content.styletype == 5">{{item.subtitle ? item.subtitle : '副标题'}}</span>
+
+                        
+                    </a>
+                </li>
+               
+            </ul>
+        </div>
+        <template v-for="(item,ind) in modCon.content.labsArr" >
+            <div class="slabBox" v-if="item && item.type == 2 && labelChose == ind" :style="'padding-left:'+(modCon.content.style.marginLeft / 2)+'px;'">
+                <ul>
+                    <li :class="[{'on_chose':slabelChose == sid }]" v-for="(slab,sid) in item.children" @click.stop="slabelChose = sid; labelChose = ind; changeEditlabel(modInd,ind,sid) " :style="getObjStyle(modCon.content,(slabelChose == sid ? 'labSub1' : 'labSub'))">
+                        <a href="javascript:;" :style="'color:'+ (slabelChose == sid ? modCon.content.style.chose_sub_title : modCon.content.style.sub_title) +';'">{{slab.title ? slab.title : '选项' + (sid + 1)}}</a>
+                    </li>
+                </ul>
+            </div>
+        </template>
+
+        <!-- 查看更多 -->
+        <div class="more_btn" v-if="modCon.content.more && modCon.content.more.show" :style="'background-color:'+ (modCon.content.style.bgColor ? modCon.content.style.bgColor : pageSetFormData.style.bgColor) +';'">
+            <span class="bg" :style="'background: linear-gradient(to right, '+ checkBgColor((modCon.content.style.bgColor ? modCon.content.style.bgColor : pageSetFormData.style.bgColor) , '0') +' , '+ (modCon.content.style.bgColor ? modCon.content.style.bgColor : pageSetFormData.style.bgColor) +');'"></span>
+            <span class="more" >{{modCon.content.more.text}}<s v-show="modCon.content.more.arr">
+                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="11px" height="20px" viewBox="0 0 22 40"> <path fill-rule="evenodd"  opacity="0.6" :fill="modCon.content.more.text ? modCon.content.more.text : 'rgb(161, 164, 179)'" d="M10.977,9.976 C10.977,9.618 10.831,9.260 10.544,8.986 L3.484,0.385 C2.910,-0.161 1.972,-0.161 1.401,0.385 C0.822,0.935 0.822,1.820 1.401,2.368 L7.415,9.976 L1.401,17.583 C0.822,18.130 0.822,19.020 1.401,19.567 C1.972,20.113 2.910,20.113 3.484,19.567 L10.544,10.968 C10.831,10.694 10.977,10.336 10.977,9.976 Z"/> </svg>
+            </s></span>
+        </div>
+    </div>
+
+    <!-- 普通的分隔标题 -->
+    
+    <div :class=" ['titleInfoConBox',{'currEditPart':currEditPart == 7 && modInd == currEditInd}]" v-if="!modCon.content.labeShow && modCon.content.titleMore && modCon.content.titleMore.show" @click.stop="toEditPart(modCon,modInd,7)">
+        <el-popover popper-class="alertPop" :visible-arrow="false" :value="currEditInd == modInd && showPop && currEditPart == 7" @show="showPop = true">
+            <div class="text_con">
+                <h4>确认删除该组件？</h4>
+            </div>
+            <div class="alertBtn">
+                <a href="javascript:;" class="cancel" @click=" showPop= false"><s></s><span>取消</span></a>
+                <a href="javascript:;" class="sure" @click="delModBox(modInd,7)"><s></s><span>确定</span></a>
+            </div>
+            <div :class="['del_btn',{'show':currEditInd == modInd && showPop && currEditPart == 7}]" slot="reference" ><s></s>删除</div>
+        </el-popover>
+        <div class="titleInfoBox" :style="'margin:0 '+ modCon.content.titleMore.style.marginLeft/2 +'px; height:'+ modCon.content.titleMore.style.height/2+'px;'">
+            <div class="place" v-show="modCon.content.titleMore.layout=== 1"></div>
+            <div :class="['titleInfo',{'alignCenter':modCon.content.titleMore.layout=== 1}]">
+                <div class="icon" v-show="modCon.content.titleMore.title.type == 2"><img crossOrigin='anonymous' :src="modCon.content.titleMore.title.icon ? (modCon.content.titleMore.title.icon + '?v=' + randomNum) : ('/static/images/admin/siteMemberPage/default_icon2.png')"  alt=""></div>
+                <h4 :style="'font-weight:bold; font-size:'+(modCon.content.titleMore.title.style.fontSize / 2)+'px; color:'+modCon.content.titleMore.title.style.color+';'">
+                    <span>{{modCon.content.titleMore.title.text ? modCon.content.titleMore.title.text : '标题'}}</span>
+                    <div class="tit_line" :style="'background:'+modCon.content.titleMore.title.style.borderColor+';'" v-show="modCon.content.titleMore.title.type === 1"></div>
+                </h4>
+            </div>
+            <div class="moreInfo" v-if="modCon.content.titleMore.more.show" :style="'color:'+modCon.content.titleMore.more.style.color+';'">{{modCon.content.titleMore.more.text}}<s v-show="modCon.content.titleMore.more.arr">
+                <!-- <em :style="'filter: drop-shadow(12px 0 0 '+  modCon.content.titleMore.more.style.color +')'"></em> -->
+                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="11px" height="20px" viewBox="0 0 22 30"> <path fill-rule="evenodd"  opacity="0.6" :fill="modCon.content.titleMore.more.style.color ? modCon.content.titleMore.more.style.color : 'rgb(161, 164, 179)'" d="M10.977,9.976 C10.977,9.618 10.831,9.260 10.544,8.986 L3.484,0.385 C2.910,-0.161 1.972,-0.161 1.401,0.385 C0.822,0.935 0.822,1.820 1.401,2.368 L7.415,9.976 L1.401,17.583 C0.822,18.130 0.822,19.020 1.401,19.567 C1.972,20.113 2.910,20.113 3.484,19.567 L10.544,10.968 C10.831,10.694 10.977,10.336 10.977,9.976 Z"/> </svg>
+            </s></div> 
+        </div>
+    </div>
+    
+    <!-- 数据列表 -->
+    <!-- 数据页 -->
+    <div :class="['listConBox',{'currEditPart':currEditPart == 28 && modInd == currEditInd}]" @click.stop="toEditPart(modCon,modInd,28)" >
+        <el-popover :popper-class="'alertPop ' + (checkListHasData(modCon) && modCon.content.labShow ? 'moreBigPop' : '' ) "  :visible-arrow="false" :value="currEditInd == modInd && showPop && currEditPart == 28" @show="showPop = true">
+            <div class="text_con">
+                <h4 v-if="!checkListHasData(modCon) || !modCon.content.labShow">确认删除当前列表与关联标题？</h4>
+                <template v-else>
+                    <ul class="radio_ul">
+                        <li :class="['flex',{'onChose':delListType == 1}]" @click="delListType = 1"><span><s></s></span><h4>删除当前列表与关联标题</h4></li>
+                        <li :class="['flex',{'onChose':delListType == 2}]" @click="delListType = 2"><span><s></s></span><h4>仅删除当前列表内容 </h4></li>
+                    </ul>
+                </template>
+            </div>
+            <div class="alertBtn">
+                <a href="javascript:;" class="cancel" @click="showPop= false"><s></s><span>取消</span></a>
+                <a href="javascript:;" class="sure" @click="delModBox(modInd,28)"><s></s><span>确定</span></a>
+            </div>
+            <div :class="['del_btn',{'show':currEditInd == modInd && showPop && currEditPart == 28}]" slot="reference" ><s></s>删除</div>
+        </el-popover>
+        <!-- 手动选择 则显示listArr  自动选择 则显示listShowData 需加载 -->
+
+        
+
+        <template v-for="(list,ind) in modCon.content.labsArr">
+            <!-- 有二级 -->
+            <template v-if="list && list.type == 2 && labelChose == ind" >
+                <template v-for="(child,cind) in list.children">
+                    <div class="listCon"  v-if="cind == slabelChose" :style="getObjStyle(child.dataFormData.dataObj,'listMargin')">
+                        <template v-if="child.dataFormData && child.dataFormData.listArr && child.dataFormData.listArr.length ">
+                            <list-module :dataobj="child.dataFormData"></list-module>
+                        </template>
+                        <div class="emptyList" v-else>
+                            <div class="emptyImg">
+
+                                <img src="/static/images/admin/siteConfigPage/empty_list.png" alt="">
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </template>
+
+            <!-- 没有二级 -->
+            <div class="listCon" v-else-if="labelChose == ind" :style="getObjStyle(list.dataFormData.dataObj,'listMargin')">
+                <template v-if="list.dataFormData && list.dataFormData.listArr && list.dataFormData.listArr.length ">
+                    <list-module :dataobj="list.dataFormData"></list-module>
+                </template>
+                <div class="emptyList" v-else>
+                    <div class="emptyImg">
+                        <img src="/static/images/admin/siteConfigPage/empty_list.png" alt="">
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+</template>

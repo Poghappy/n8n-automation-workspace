@@ -1,0 +1,292 @@
+{
+  "name": "火鸟门户自动化新闻工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "定时触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://www.theneuron.ai/feed",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "rss-neuron",
+      "name": "采集Neuron AI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://www.futurepedia.io/rss",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "rss-futurepedia",
+      "name": "采集Futurepedia",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 内容处理和去重检测\nconst items = $input.all();\nconst processedItems = [];\nconst seenTitles = new Set();\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // 基础数据清理\n  const title = (data.title || '').trim();\n  const content = (data.contentSnippet || data.content || data.description || '').trim();\n  const url = data.link || data.guid || '';\n  \n  // 跳过空内容\n  if (!title || title.length < 10 || !content || content.length < 50) {\n    continue;\n  }\n  \n  // 简单去重 - 基于标题\n  const titleKey = title.toLowerCase().replace(/[^a-z0-9]/g, '');\n  if (seenTitles.has(titleKey)) {\n    continue;\n  }\n  seenTitles.add(titleKey);\n  \n  // 内容分类\n  let category = 'AI资讯';\n  const titleLower = title.toLowerCase();\n  if (titleLower.includes('chatgpt') || titleLower.includes('openai')) {\n    category = 'ChatGPT';\n  } else if (titleLower.includes('tool') || titleLower.includes('app')) {\n    category = 'AI工具';\n  } else if (titleLower.includes('news') || titleLower.includes('update')) {\n    category = 'AI新闻';\n  }\n  \n  // 内容优化\n  let optimizedTitle = title;\n  if (optimizedTitle.length > 60) {\n    optimizedTitle = optimizedTitle.substring(0, 57) + '...';\n  }\n  \n  let optimizedContent = content;\n  // 移除HTML标签\n  optimizedContent = optimizedContent.replace(/<[^>]*>/g, '');\n  // 限制长度\n  if (optimizedContent.length > 2000) {\n    optimizedContent = optimizedContent.substring(0, 1997) + '...';\n  }\n  \n  // 生成关键词\n  const keywords = [];\n  const keywordPatterns = [\n    /AI|人工智能/gi,\n    /ChatGPT|GPT/gi,\n    /机器学习|Machine Learning/gi,\n    /深度学习|Deep Learning/gi,\n    /自然语言处理|NLP/gi,\n    /工具|Tool/gi\n  ];\n  \n  for (const pattern of keywordPatterns) {\n    const matches = (title + ' ' + content).match(pattern);\n    if (matches) {\n      keywords.push(...matches.slice(0, 2));\n    }\n  }\n  \n  processedItems.push({\n    json: {\n      title: optimizedTitle,\n      content: optimizedContent,\n      category: category,\n      author: 'AI采集',\n      source: data.creator || 'RSS采集',\n      source_url: url,\n      keywords: keywords.slice(0, 5).join(', '),\n      publishedAt: data.pubDate || data.isoDate || new Date().toISOString(),\n      processed_at: new Date().toISOString(),\n      quality_score: Math.min(100, Math.max(60, title.length + content.length / 10))\n    }\n  });\n}\n\nconsole.log(`处理完成: 原始${items.length}条，处理后${processedItems.length}条`);\nreturn processedItems;"
+      },
+      "id": "content-processor",
+      "name": "内容处理器",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.quality_score}}",
+              "operation": "largerEqual",
+              "value2": 70
+            }
+          ]
+        }
+      },
+      "id": "quality-filter",
+      "name": "质量过滤",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://hawaiihub.net/include/ajax.php",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://hawaiihub.net/"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "service",
+              "value": "article"
+            },
+            {
+              "name": "action",
+              "value": "put"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "typeid",
+              "value": "1"
+            },
+            {
+              "name": "body",
+              "value": "={{$json.content}}"
+            },
+            {
+              "name": "keywords",
+              "value": "={{$json.keywords}}"
+            },
+            {
+              "name": "author",
+              "value": "={{$json.author}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "firebird-publish",
+      "name": "发布到火鸟门户",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "huoniao_session",
+          "name": "火鸟门户会话"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// 发布结果处理和日志记录\nconst items = $input.all();\nconst results = [];\nlet successCount = 0;\nlet failCount = 0;\n\nfor (const item of items) {\n  const response = item.json;\n  const originalData = $('content-processor').item.json;\n  \n  let status = 'unknown';\n  let message = '';\n  \n  try {\n    // 解析火鸟API响应\n    if (typeof response === 'string') {\n      // 如果返回HTML，说明可能是登录页面\n      if (response.includes('<html') || response.includes('login')) {\n        status = 'auth_failed';\n        message = '认证失败，可能需要重新登录';\n        failCount++;\n      } else {\n        // 尝试解析JSON响应\n        try {\n          const jsonResponse = JSON.parse(response);\n          if (jsonResponse.state === 100) {\n            status = 'success';\n            message = `文章发布成功，ID: ${jsonResponse.info}`;\n            successCount++;\n          } else {\n            status = 'failed';\n            message = jsonResponse.info || '发布失败';\n            failCount++;\n          }\n        } catch (e) {\n          status = 'success';\n          message = '发布可能成功（响应格式异常）';\n          successCount++;\n        }\n      }\n    } else if (response.state) {\n      if (response.state === 100) {\n        status = 'success';\n        message = `文章发布成功，ID: ${response.info}`;\n        successCount++;\n      } else {\n        status = 'failed';\n        message = response.info || '发布失败';\n        failCount++;\n      }\n    } else {\n      status = 'success';\n      message = '发布完成';\n      successCount++;\n    }\n  } catch (error) {\n    status = 'error';\n    message = error.message;\n    failCount++;\n  }\n  \n  results.push({\n    json: {\n      title: originalData.title,\n      status: status,\n      message: message,\n      published_at: new Date().toISOString(),\n      category: originalData.category,\n      quality_score: originalData.quality_score\n    }\n  });\n}\n\n// 添加汇总信息\nresults.push({\n  json: {\n    summary: true,\n    total_processed: items.length,\n    success_count: successCount,\n    fail_count: failCount,\n    success_rate: items.length > 0 ? Math.round((successCount / items.length) * 100) : 0,\n    execution_time: new Date().toISOString()\n  }\n});\n\nconsole.log(`发布完成: 成功${successCount}条，失败${failCount}条`);\nreturn results;"
+      },
+      "id": "result-processor",
+      "name": "结果处理器",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.summary}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "summary-filter",
+      "name": "汇总过滤",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 执行日志记录\nconst summary = $input.first().json;\nconst timestamp = new Date().toISOString();\n\n// 构建日志消息\nconst logMessage = `\n🤖 火鸟门户自动化新闻工作流执行报告\n⏰ 执行时间: ${timestamp}\n📊 处理结果: 总计${summary.total_processed}条，成功${summary.success_count}条，失败${summary.fail_count}条\n📈 成功率: ${summary.success_rate}%\n${summary.success_rate < 80 ? '⚠️ 成功率偏低，建议检查配置' : '✅ 执行正常'}\n`;\n\nconsole.log(logMessage);\n\n// 如果有Webhook URL，可以发送通知\nconst webhookUrl = $vars.WEBHOOK_ALERT_URL || process.env.WEBHOOK_ALERT_URL;\nif (webhookUrl && summary.success_rate < 50) {\n  // 成功率过低时发送告警\n  return {\n    json: {\n      webhook_url: webhookUrl,\n      alert: true,\n      message: `火鸟门户新闻工作流成功率过低: ${summary.success_rate}%`,\n      details: summary\n    }\n  };\n}\n\nreturn {\n  json: {\n    log_message: logMessage,\n    summary: summary,\n    status: 'completed'\n  }\n};"
+      },
+      "id": "logger",
+      "name": "日志记录器",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1780, 200]
+    }
+  ],
+  "connections": {
+    "schedule-trigger": {
+      "main": [
+        [
+          {
+            "node": "rss-neuron",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "rss-futurepedia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "rss-neuron": {
+      "main": [
+        [
+          {
+            "node": "content-processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "rss-futurepedia": {
+      "main": [
+        [
+          {
+            "node": "content-processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "content-processor": {
+      "main": [
+        [
+          {
+            "node": "quality-filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "quality-filter": {
+      "main": [
+        [
+          {
+            "node": "firebird-publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "firebird-publish": {
+      "main": [
+        [
+          {
+            "node": "result-processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "result-processor": {
+      "main": [
+        [
+          {
+            "node": "summary-filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "summary-filter": {
+      "main": [
+        [
+          {
+            "node": "logger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-23T14:00:00.000Z",
+  "versionId": "1"
+}

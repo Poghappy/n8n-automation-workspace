@@ -1,0 +1,226 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-22T00:00:00Z",
+  "description": "增强版新闻采集数据源配置文件",
+  
+  "rssSources": [
+    {
+      "name": "The Neuron",
+      "url": "https://www.theneuron.ai/feed",
+      "category": "AI资讯",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "AI领域的最新资讯和趋势"
+    },
+    {
+      "name": "Futurepedia",
+      "url": "https://www.futurepedia.io/rss",
+      "category": "AI工具",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "AI工具和应用的综合目录"
+    },
+    {
+      "name": "Superhuman Blog",
+      "url": "https://blog.superhuman.com/feed/",
+      "category": "科技资讯",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 2,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "Superhuman团队的产品和技术博客"
+    },
+    {
+      "name": "The Rundown AI",
+      "url": "https://www.therundown.ai/feed",
+      "category": "AI资讯",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "每日AI新闻摘要和分析"
+    },
+    {
+      "name": "AI News",
+      "url": "https://artificialintelligence-news.com/feed/",
+      "category": "AI新闻",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 2,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "人工智能行业新闻和深度报道"
+    },
+    {
+      "name": "VentureBeat AI",
+      "url": "https://venturebeat.com/ai/feed/",
+      "category": "AI商业",
+      "categoryId": 2,
+      "enabled": true,
+      "priority": 2,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "AI商业和投资相关新闻"
+    },
+    {
+      "name": "MIT Technology Review AI",
+      "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
+      "category": "AI研究",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "MIT技术评论的AI相关文章"
+    },
+    {
+      "name": "OpenAI Blog",
+      "url": "https://openai.com/blog/rss.xml",
+      "category": "AI研究",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "description": "OpenAI官方博客和研究更新"
+    }
+  ],
+  
+  "githubSources": [
+    {
+      "name": "GitHub Trending",
+      "type": "trending",
+      "repo": "trending",
+      "category": "开源项目",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "language": "all",
+      "since": "weekly",
+      "limit": 10,
+      "description": "GitHub上的热门趋势项目"
+    },
+    {
+      "name": "Awesome Machine Learning",
+      "type": "repository",
+      "repo": "josephmisiti/awesome-machine-learning",
+      "category": "AI项目",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 2,
+      "trackReleases": true,
+      "trackCommits": false,
+      "limit": 5,
+      "description": "机器学习资源和工具的精选列表"
+    },
+    {
+      "name": "OpenAI Repositories",
+      "type": "organization",
+      "repo": "openai",
+      "category": "AI研究",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "trackReleases": true,
+      "trackCommits": true,
+      "limit": 5,
+      "description": "OpenAI组织的开源项目"
+    },
+    {
+      "name": "Hugging Face Transformers",
+      "type": "repository",
+      "repo": "huggingface/transformers",
+      "category": "AI工具",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 1,
+      "trackReleases": true,
+      "trackCommits": false,
+      "limit": 3,
+      "description": "Hugging Face的Transformers库"
+    },
+    {
+      "name": "TensorFlow",
+      "type": "repository",
+      "repo": "tensorflow/tensorflow",
+      "category": "AI框架",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 2,
+      "trackReleases": true,
+      "trackCommits": false,
+      "limit": 3,
+      "description": "Google的TensorFlow机器学习框架"
+    },
+    {
+      "name": "PyTorch",
+      "type": "repository",
+      "repo": "pytorch/pytorch",
+      "category": "AI框架",
+      "categoryId": 1,
+      "enabled": true,
+      "priority": 2,
+      "trackReleases": true,
+      "trackCommits": false,
+      "limit": 3,
+      "description": "Facebook的PyTorch深度学习框架"
+    }
+  ],
+  
+  "collectionSettings": {
+    "maxItemsPerSource": 10,
+    "maxTotalItems": 50,
+    "deduplicationEnabled": true,
+    "similarityThreshold": 0.8,
+    "minContentLength": 50,
+    "maxContentLength": 5000,
+    "minTitleLength": 5,
+    "maxTitleLength": 200,
+    "enableContentValidation": true,
+    "enableQualityFiltering": true,
+    "minQualityScore": 60
+  },
+  
+  "errorHandling": {
+    "maxRetryAttempts": 3,
+    "retryDelayMs": 5000,
+    "timeoutMs": 30000,
+    "skipOnError": true,
+    "logErrors": true,
+    "alertOnHighErrorRate": true,
+    "errorRateThreshold": 0.3
+  },
+  
+  "scheduling": {
+    "cronExpression": "0 */30 * * * *",
+    "timezone": "Asia/Shanghai",
+    "enabled": true,
+    "description": "每30分钟执行一次采集任务"
+  },
+  
+  "categoryMapping": {
+    "1": {
+      "name": "科技资讯",
+      "description": "科技、AI、创新相关新闻",
+      "keywords": ["AI", "人工智能", "科技", "技术", "创新", "数字化"]
+    },
+    "2": {
+      "name": "商业资讯",
+      "description": "商业、投资、市场相关新闻",
+      "keywords": ["商业", "投资", "市场", "经济", "企业", "创业"]
+    },
+    "3": {
+      "name": "开源项目",
+      "description": "开源软件和项目相关新闻",
+      "keywords": ["开源", "GitHub", "项目", "代码", "开发"]
+    }
+  }
+}

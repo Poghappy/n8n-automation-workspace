@@ -1,0 +1,37 @@
+# Firecrawl工作流程测试URL列表
+# 每行一个URL，以#开头的行为注释
+
+# 基础测试网站
+https://example.com
+https://httpbin.org/html
+
+# 新闻网站（丰富的媒体内容）
+https://www.bbc.com/news
+https://techcrunch.com
+
+# 技术博客
+https://blog.github.com
+https://stackoverflow.blog
+
+# 电商网站（多媒体资源）
+https://www.amazon.com
+https://www.ebay.com
+
+# 社交媒体（需要注意反爬虫）
+# https://twitter.com
+# https://www.instagram.com
+
+# 视频网站（测试视频链接提取）
+# https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+# 图片网站
+https://unsplash.com
+https://pixabay.com
+
+# 文档网站
+https://docs.python.org
+https://developer.mozilla.org
+
+# 维基百科（结构化内容）
+https://en.wikipedia.org/wiki/Web_scraping
+https://zh.wikipedia.org/wiki/网络爬虫

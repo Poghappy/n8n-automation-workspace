@@ -1,0 +1,48 @@
+#! kustomization.yaml
+# Generated code, do not edit
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+    - 0-n8n--namespace.yaml
+    - ai-agent-system-ai_agent_data-persistentVolumeClaim.yaml
+    - ai-agent-system-deployment.yaml
+    - ai-agent-system-expose.yaml
+    - ai-agent-system-service.yaml
+    - elasticsearch-deployment.yaml
+    - elasticsearch-elasticsearch_data-persistentVolumeClaim.yaml
+    - elasticsearch-expose.yaml
+    - elasticsearch-service.yaml
+    - grafana-deployment.yaml
+    - grafana-expose.yaml
+    - grafana-grafana_data-persistentVolumeClaim.yaml
+    - grafana-service.yaml
+    - huoniao-portal-deployment.yaml
+    - huoniao-portal-expose.yaml
+    - huoniao-portal-service.yaml
+    - kibana-deployment.yaml
+    - kibana-expose.yaml
+    - kibana-service.yaml
+    - n8n-deployment.yaml
+    - n8n-expose.yaml
+    - n8n-n8n_data-persistentVolumeClaim.yaml
+    - n8n-network-network-policy.yaml
+    - n8n-service.yaml
+    - nginx-deployment.yaml
+    - nginx-expose.yaml
+    - nginx-service.yaml
+    - postgres-deployment.yaml
+    - postgres-expose.yaml
+    - postgres-postgres_data-persistentVolumeClaim.yaml
+    - postgres-service.yaml
+    - prometheus-deployment.yaml
+    - prometheus-expose.yaml
+    - prometheus-prometheus_data-persistentVolumeClaim.yaml
+    - prometheus-service.yaml
+    - rabbitmq-deployment.yaml
+    - rabbitmq-expose.yaml
+    - rabbitmq-rabbitmq_data-persistentVolumeClaim.yaml
+    - rabbitmq-service.yaml
+    - redis-deployment.yaml
+    - redis-expose.yaml
+    - redis-redis_data-persistentVolumeClaim.yaml
+    - redis-service.yaml

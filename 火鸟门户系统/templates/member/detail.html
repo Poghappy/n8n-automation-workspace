@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title>{#$langData['siteConfig'][30][0]#}</title>{#* 视频预览 *#}
+	<!--<link rel="stylesheet" href="//g.alicdn.com/de/prismplayer/2.6.0/skins/default/aliplayer-min.css" />-->
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/core/jquery-1.8.3.min.js"></script>
+	<!--<script type="text/javascript" src="//g.alicdn.com/de/prismplayer/2.6.0/aliplayer-min.js"></script>-->
+	<script type="text/javascript">
+        var masterDomain = '{#$cfg_basehost#}', channelDomain = '{#$live_channelDomain#}';
+		var cookiePre = '{#$cfg_cookiePre#}';
+        var criticalPoint = 1240, criticalClass = "w1200";
+        $("html").addClass($(window).width() > criticalPoint ? criticalClass : "");
+
+        var hideFileUrl = {#$cfg_hideUrl#};
+    </script>
+</head>
+<style>
+#J_prismPlayer{
+	float:left;
+	display:inline-block;
+	position: relative;
+}
+#right{
+	float:left;
+	display:inline-block;
+}
+.rc-chatroom *{
+	margin:0;
+	padding:0;
+	list-style:none;
+}
+.rc-chatroom {
+	width:400px;
+	border:1px solid #ccc;
+	border-radius:3px;
+}
+.rc-message-list-wrapper{
+	width:100%;
+	height:400px;
+	overflow:auto;
+	position:relative;
+}
+.rc-message-list{
+	width:100%;
+	position:absolute;
+	bottom:0;
+	left:0;
+	height: 378px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+.rc-message{
+	clear:both;
+	font-size:14px;
+	line-height:1.5;
+	border-bottom:1px solid #f5f5f5;
+	padding-bottom:10px;
+	margin:5px;
+	vertical-align:top;
+}
+.rc-message-portrait{
+	display:inline-block;
+	float:left;
+	margin:5px;
+}
+.rc-message-portrait img{
+	width:40px;
+	height:40px;
+	border:1px solid #ccc;
+	border-radius:50%;
+}
+.rc-message-time,
+.rc-message-name{
+	display:inline-block;
+	margin-left:0.5em;
+	margin-top:0.5em;
+}
+.rc-message-content{
+	margin-left:4.2em;
+}
+
+.rc-chatroom-user{
+	height:30px;
+	padding:5px;
+	padding-bottom:10px;
+	position:relative;
+}
+.rc-emoji-panel{
+	display:none;
+	width:19em;
+	border:1px solid #ccc;
+	padding:10px;
+	background:#f5f5f5;
+	position:absolute;
+	left:3px;
+	bottom:40px;
+}
+.rc-chatroom-emoji{
+	line-height:30px;
+	font-size:24px;
+	cursor:pointer;
+}
+.rc-chatroom-input{
+	width:72%;
+	height:24px;
+	padding:2px;
+	border:1px solid #ccc;
+	background:#f5f5f5;
+}
+.rc-chatroom-button{
+	background:#333;
+	color:#fff;
+	border-radius:3px;
+	padding:6px 20px;
+}
+</style>
+<body>
+<h3>{#$detail_title#}</h3>
+<!--<canvas style="width: 600px;height: 400px;background-color: rgba(0,0,0,0.2);z-index: 999;left: 0;position: absolute;display: inline-block;">你的浏览器不支持canvas</canvas>-->
+<div  class="prism-player" id="J_prismPlayer"></div>
+
+<!-- 弹幕信息展示 -->
+<div id="right">
+	<div class="rc-chatroom">
+		<div class="rc-message-list-wrapper">
+			<div class="rc-message-list" id="rc-message-list"></div>
+		</div>
+
+		<div class="rc-chatroom-user">
+			<span class="rc-chatroom-emoji" id="rc-chatroom-emoji">😄</span>
+			<div class="rc-emoji-panel" id="rc-emoji-panel"></div>
+			<input class="rc-chatroom-input" id="rc-chatroom-input" type="text" placeholder="{#$langData['siteConfig'][30][1]#}">{#* 发表你的精彩评论 *#}
+			<input class="rc-chatroom-button" id="rc-chatroom-button" type="submit" value="{#$langData['siteConfig'][6][139]#}">{#* 发送 *#}
+		</div>
+	</div>
+</div>
+<div id="show"></div>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/lang/{#$langList.currCode#}.js?v={#$cfg_staticVersion#}'></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/rong/pre-check.js"></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/rong/RongIMLib-2.2.9.min.js"></script>
+<!--<script src="http://cdn.ronghub.com/RongEmoji-2.2.6.min.js"></script>-->
+ <script>
+ 	"use strict";
+ 	/*var isfalse ={#if $detail_state==2#}false{#else#}true{#/if#};
+    var player = new Aliplayer({
+    id: "J_prismPlayer",
+         autoplay: true,
+         isLive:isfalse,
+         playsinline:true,
+         width:"600px",
+         height:"400px",
+         controlBarVisibility:"always",
+         useH5Prism:true,
+         useFlashPrism:false,
+         source:"{#$detail_url#}",
+         cover:"",
+         skinLayout:[{"name":"fullControlBar","align":"tlabs","x":0,"y":0,"children":[{"name":"fullTitle","align":"tl","x":25,"y":6},
+                {"name":"fullTimeDisplay","align":"tr","x":10,"y":12}]},
+                {"name":"controlBar","align":"blabs","x":0,"y":0,"children":[{"name":"snapshot","align":"tr","x":20,"y":25},
+                {"name":"volume","align":"tr","x":20,"y":25},
+                {"name":"progress","align":"tlabs","x":0,"y":0},
+                {"name":"playButton","align":"tl","x":15,"y":26},
+                {"name":"fullScreenButton","align":"tr","x":20,"y":25},
+                {"name":"timeDisplay","align":"tl","x":10,"y":24},
+                {"name":"setButton","align":"tr","x":20,"y":25},
+                {"name":"streamButton","align":"tr","x":20,"y":23},
+                {"name":"speedButton","align":"tr","x":10,"y":23}]},
+                {"name":"bigPlayButton","align":"blabs","x":30,"y":80},
+                {"name":"H5Loading","align":"cc"},
+                {"name":"errorDisplay","align":"tlabs","x":0,"y":0},
+                {"name":"infoDisplay","align":"cc"}]
+         },function(player){
+            //console.log("播放器创建了。");
+          }
+    );*/
+
+(function(){
+	var page = 1;
+	var isload = false;
+	var appKey = "0vnjpoad0egoz";
+	var token  = "{#$detail_token#}";
+	var config = {
+        protobuf : "{#$cfg_staticPath#}js/rong/protobuf-2.2.8.min.js"
+    };
+    var chatRoomId = "{#$detail_chatRoomId#}"; // 聊天室 Id。
+	var count = 1;// 拉取最近聊天最多 50 条。
+    RongIMLib.RongIMClient.init(appKey,null,config);
+
+    //表情选择
+	var panel = document.getElementById("rc-emoji-panel");
+	var panelBtn = document.getElementById("rc-chatroom-emoji");
+	var input = document.getElementById("rc-chatroom-input");
+
+    /*var RongIMEmoji = RongIMLib.RongIMEmoji;
+	RongIMEmoji.init();
+
+	var emojis = RongIMEmoji.list;
+    for (var i = 0; i < 24; i++) {
+        var value = RongIMEmoji.list[i];
+        panel.appendChild(value.node);
+    }*/
+
+
+    var instance = RongIMClient.getInstance();
+    // 连接状态监听器
+	RongIMClient.setConnectionStatusListener({
+		onChanged: function (status) {
+		    switch (status) {
+		        case RongIMLib.ConnectionStatus.CONNECTED:
+		            break;
+		        }
+		}
+	});
+	RongIMClient.setOnReceiveMessageListener({
+		// 接收到的消息
+		onReceived: function (message) {
+		    // 判断消息类型
+			//updateDanmu(message.content.content);
+			if(chatRoomId==message.targetId){//需要判断是否是相同的聊天室，不然后的话信息就会乱窜其他的聊天室。
+				updateMessage(message.content.content);
+			}
+			//$('canvas').barrager([{"msg":message.content.content}]);
+		    //console.log("新消息");
+		}
+	});
+	//开始链接
+	var username='{#$detail_username#}';
+	RongIMClient.connect(token, {
+		onSuccess: function(userId) {
+
+            //链接成功后 才可 发送消息
+            RongIMClient.userInfo = {
+				data : {userId: userId,userName:username},
+				status : "ok",
+				info : "链接成功"
+			};
+			joinChat(RongIMClient.userInfo);
+			loaddata();
+		},
+		onTokenIncorrect: function() {
+			//console.log('token无效');
+		},
+		onError:function(errorCode){
+		  console.log(errorCode);
+		}
+	});
+	var callback = {
+        onSuccess: function(userId) {
+            console.log("Reconnect successfully." + userId);
+        },
+        onTokenIncorrect: function() {
+            console.log('token无效');
+        },
+        onError:function(errorCode){
+            console.log(errorcode);
+        }
+    };
+    var reconfig = {
+        // 默认 false, true 启用自动重连，启用则为必选参数
+        auto: true,
+        // 重试频率 [100, 1000, 3000, 6000, 10000, 18000] 单位为毫秒，可选
+        url: '{#$cfg_staticPath#}js/rong/RongIMLib-2.2.9.min.js',
+        // 网络嗅探地址 [http(s)://]cdn.ronghub.com/RongIMLib-2.2.6.min.js 可选
+        rate: [100, 1000, 3000, 6000, 10000]
+    };
+    RongIMClient.reconnect(callback, reconfig);
+	//如何解决这个问题呢？
+	//如果建群的话，1、群的会员数量有限制（每个群最大至 3000 人）；2、JavaScript没有接口调用。3、要创建群组。
+	//讨论组已经停止维护了。
+	//聊天室 1、无法多页面；2、一个用户只能加入一个聊天室。
+	function joinChat(userInfo){
+		RongIMClient.getInstance().joinChatRoom(chatRoomId, count, {
+		  onSuccess: function() {
+			   var chatRoom = {
+					id : chatRoomId,
+					currentUser : userInfo.data,
+					getInfo : function (params,callbacks){
+						var order = params.order; //RongIMLib.GetChatRoomType.REVERSE;// 排序方式。
+						var memberCount = params.memberCount; // 获取聊天室人数 （范围 0-20 ）
+						RongIMClient.getInstance().getChatRoomInfo(chatRoomId, memberCount, order,callbacks);
+					},
+					quit : function(callbacks){
+						RongIMClient.getInstance().quitChatRoom(chatRoomId, callbacks);
+					},
+					sendMessage : function(content, callbacks){
+						var conversationType = RongIMLib.ConversationType.CHATROOM;
+						var msg = new RongIMLib.TextMessage(content);
+						RongIMClient.getInstance().sendMessage(conversationType, chatRoomId, msg, callbacks);
+					}
+				};
+				apiDemo(chatRoom);
+		  },
+		  onError: function(error) {
+			// 加入聊天室失败
+			console.log(langData['siteConfig'][38][39]);//聊天室失败
+		  }
+		});
+	}
+
+	function apiDemo(chatRoom){
+		//点击发送消息
+		$("#rc-chatroom-button").click(function(){
+			var content = $("#rc-chatroom-input").val();
+			var content1= $("#rc-chatroom-input").val();
+			var userid = chatRoom.currentUser.userId;
+			var username = chatRoom.currentUser.userName;
+				//content = '<div style="background: #ff6537;color:#000;padding:5px;">' + content + '</div>';
+			content='<div class="rc-message" _userid="'+userid+'"><div class="rc-message-portrait"><img src="http://www.oneplusbbs.com/uc_server/images/noavatar_small.gif?96"></div><div class="rc-message-name">'+username+'</div><div class="rc-message-content">'+content+'</div></div>'
+			chatRoom.sendMessage({"content" : content}, {
+		        onSuccess: function (message) {
+		            console.log(langData['siteConfig'][38][40]);//发送聊天室消息成功
+		            updateMessage(content);
+		            chatTalk(chatRoom.id,userid,username,'',content1);
+		            //chatTalk(chatid,userid,username,userphoto,content)
+		            //updateDanmu(content);
+		            //$('canvas').barrager([{"msg":content1}]);
+		        },
+		        onError: function (errorCode,message) {
+		            console.log(langData['siteConfig'][38][41],errorCode);//发送聊天室消息失败
+		        }
+		    });
+		});
+	}
+	/*
+	发送弹幕方法
+	*/
+	function updateMessage(message){
+		var t = document.getElementById("rc-message-list");
+		//message = RongIMEmoji.emojiToSymbol(message);
+		//var html = renderUI(message);
+		var html = message;
+			t.innerHTML += html;
+	}
+	function updateDanmu(message){
+		 $(".rc-message").animate({left: '+50px'}, "slow");
+		//$('canvas').barrager([{"msg":message}]);
+	}
+	$("#rc-message-list").delegate(".rc-message", "click", function(){
+		var id = $(this).attr("_userid");
+		var url = masterDomain + "/include/ajax.php?service=live&action=limitTalk&id="+id;
+		$.ajax({
+	      url: url,
+	      type: "GET",
+	      dataType: "json",
+	      success: function (data) {
+	        if(data.state == 100){
+	        	console.log('suc');
+	        }else{
+	        	console.log('error');
+	        }
+	      },
+	      error: function(){
+	      	console.log(langData['siteConfig'][38][42]);//网络错误，操作失败！
+	      }
+	    });
+	});
+
+	$(".rc-chatroom-user").delegate("#rc-chatroom-emoji", "click", function(event){
+        if(panel.style.display == "block"){
+			panel.style.display = "none";
+		}else{
+    		panel.style.display = "block";
+    	}
+        //input.value += RongIMEmoji.symbolToEmoji(target.getAttribute("name"));
+	});
+	$(".rc-chatroom-user").delegate("#rc-emoji-panel", "click", function(event){
+        var e = event || window.event;
+        var target = e.target || e.srcElement;
+        if (document.all && !document.addEventListener === false) {
+            console.log(target);
+        }
+        input.value += RongIMEmoji.symbolToEmoji(target.getAttribute("name"));
+	});
+
+	function chatTalk(chatid,userid,username,userphoto,content){
+		var url = masterDomain + "/include/ajax.php?service=live&action=chatTalk";
+		$.ajax({
+	      url: url,
+	      data: "chatid="+chatid+"&userid="+userid+"&username="+username+"&userphoto="+userphoto+"&content="+content,
+	      type: "GET",
+	      dataType: "json",
+	      success: function (msg) {
+	        if(msg.state == 100){
+	        	console.log('suc');
+	        }else{
+	        	console.log('error');
+	        }
+	      },
+	      error: function(){
+	      	console.log(langData['siteConfig'][38][42]);//网络错误，操作失败！
+	      }
+	    });
+	}
+
+	$("#rc-message-list").scroll(function() {
+		if($("#rc-message-list").scrollTop() <= 0 && !isload){
+			page++;
+			loaddata();
+		}
+	});
+	function loaddata(){
+		var url = masterDomain + "/include/ajax.php?service=live&action=talkList&chatid="+chatRoomId;
+		var t = $("#rc-message-list");
+		$.ajax({
+	      url: url,
+	      data: "page="+page,
+	      type: "GET",
+	      dataType: "json",
+	      success: function (msg) {
+	        if(msg.state == 100){
+				var list = msg.info.list, html ="";
+				if(list.length > 0){
+					for(var i = 0; i < list.length; i++){
+						html+='<div class="rc-message" _userid="'+list[i].userid+'">';
+						if (list[i].userphoto != "") {
+							html+='<div class="rc-message-portrait"><img src="'+list[i].userphoto+'"></div>';
+						}else{
+							html+='<div class="rc-message-portrait"><img src="http://www.oneplusbbs.com/uc_server/images/noavatar_small.gif?96"></div>';
+						}
+						html+='<div class="rc-message-name">'+list[i].username+'</div>';
+						html+='<div class="rc-message-content">'+list[i].content+'</div></div>';
+					}
+					isload = false;
+					//最后一页
+					if(page >= msg.info.pageInfo.totalPage){
+						isload = true;
+					}
+				}
+				t.prepend(html);
+	        }else{
+	        	console.log('error');
+	        }
+	      },
+	      error: function(){
+	      	console.log(langData['siteConfig'][38][42]);//网络错误，操作失败！
+	      }
+	    });
+
+	}
+
+	//$(window).unload( function () { alert("Bye now!"); } );
+
+
+
+})();
+  </script>
+</body>

@@ -1,0 +1,205 @@
+{
+  "name": "火鸟门户新闻数据抓取与发布工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */2 * * *"
+            }
+          ]
+        }
+      },
+      "name": "定时触发器",
+      "typeVersion": 1,
+      "id": "trigger",
+      "position": [
+        240,
+        304
+      ],
+      "type": "n8n-nodes-base.cron"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/search",
+        "authentication": "none",
+        "provideSslCertificates": true,
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer fc-0a2c801f433d4718bcd8189f2742edf4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"query\": \"latest news technology AI 科技 人工智能\", \"limit\": 5, \"scrapeOptions\": {\"formats\": [\"markdown\"], \"onlyMainContent\": true}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "Firecrawl搜索新闻",
+      "typeVersion": 4.2,
+      "id": "firecrawl-search",
+      "position": [
+        464,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "language": "javascript",
+        "jsCode": "// 导入火鸟门户新闻数据集成处理器\nconst { HuoNiaoNewsIntegrationProcessor } = require('/Users/zhiledeng/Documents/augment-projects/N8N-自动化/火鸟门户_新闻数据集成处理器.js');\n\n// 创建处理器实例\nconst processor = new HuoNiaoNewsIntegrationProcessor({\n  baseUrl: 'https://hawaiihub.net/include/ajax.php',\n  sessionId: '1ru3hf75ah15qm2ckm1en18lij',\n  enableContentOptimization: true,\n  enableDuplicateDetection: true,\n  enableCategorization: true,\n  qualityThreshold: 60,\n  minContentLength: 100,\n  maxContentLength: 3000,\n  retryCount: 3,\n  retryDelay: 2000\n});\n\n// 处理输入数据\nconst inputData = $input.first().json;\nconst results = [];\n\n// 检查是否有搜索结果\nif (inputData && inputData.data && Array.isArray(inputData.data)) {\n  console.log(`收到 ${inputData.data.length} 条搜索结果`);\n  \n  // 处理每条新闻\n  for (let i = 0; i < inputData.data.length; i++) {\n    const newsItem = inputData.data[i];\n    \n    try {\n      console.log(`处理第 ${i + 1} 条新闻: ${newsItem.title || '未知标题'}`);\n      \n      // 使用集成处理器处理新闻数据\n      const result = await processor.processFirecrawlNews(newsItem, {\n        enableAutoKeywords: true,\n        enableAutoSummary: true,\n        enableCategorization: true\n      });\n      \n      // 添加处理结果\n      results.push({\n        index: i + 1,\n        originalTitle: newsItem.title || '未知标题',\n        originalUrl: newsItem.url || '',\n        processingResult: result,\n        timestamp: new Date().toISOString()\n      });\n      \n      // 添加延迟避免请求过于频繁\n      if (i < inputData.data.length - 1) {\n        await new Promise(resolve => setTimeout(resolve, 1500));\n      }\n      \n    } catch (error) {\n      console.error(`处理第 ${i + 1} 条新闻时发生错误:`, error.message);\n      \n      results.push({\n        index: i + 1,\n        originalTitle: newsItem.title || '未知标题',\n        originalUrl: newsItem.url || '',\n        processingResult: {\n          success: false,\n          error: error.message\n        },\n        timestamp: new Date().toISOString()\n      });\n    }\n  }\n} else {\n  console.log('没有收到有效的搜索结果数据');\n  results.push({\n    error: '没有收到有效的搜索结果数据',\n    inputData: inputData,\n    timestamp: new Date().toISOString()\n  });\n}\n\n// 获取处理统计信息\nconst stats = processor.getStats();\n\nconsole.log('处理完成，统计信息:', stats);\n\n// 返回处理结果和统计信息\nreturn [{\n  totalProcessed: results.length,\n  results: results,\n  stats: stats,\n  timestamp: new Date().toISOString()\n}];"
+      },
+      "name": "火鸟门户数据集成处理",
+      "typeVersion": 2,
+      "id": "huoniao-integration",
+      "position": [
+        688,
+        304
+      ],
+      "type": "n8n-nodes-base.code"
+    },
+    {
+      "parameters": {
+        "language": "javascript",
+        "jsCode": "// 处理结果统计和日志记录\nconst inputData = $input.first().json;\n\n// 统计成功和失败的数量\nlet successCount = 0;\nlet failureCount = 0;\nlet duplicateCount = 0;\nconst publishedArticles = [];\nconst failedArticles = [];\n\nif (inputData.results && Array.isArray(inputData.results)) {\n  inputData.results.forEach(result => {\n    if (result.processingResult) {\n      if (result.processingResult.success) {\n        successCount++;\n        publishedArticles.push({\n          title: result.originalTitle,\n          articleId: result.processingResult.articleId,\n          qualityScore: result.processingResult.qualityScore,\n          url: result.originalUrl\n        });\n      } else if (result.processingResult.duplicate) {\n        duplicateCount++;\n      } else {\n        failureCount++;\n        failedArticles.push({\n          title: result.originalTitle,\n          error: result.processingResult.error,\n          url: result.originalUrl\n        });\n      }\n    }\n  });\n}\n\n// 生成处理报告\nconst report = {\n  summary: {\n    totalProcessed: inputData.totalProcessed || 0,\n    successful: successCount,\n    failed: failureCount,\n    duplicates: duplicateCount,\n    successRate: inputData.totalProcessed > 0 ? Math.round((successCount / inputData.totalProcessed) * 100) : 0\n  },\n  publishedArticles: publishedArticles,\n  failedArticles: failedArticles,\n  processingStats: inputData.stats || {},\n  timestamp: new Date().toISOString(),\n  workflowId: 'huoniao-news-workflow'\n};\n\nconsole.log('=== 火鸟门户新闻发布报告 ===');\nconsole.log(`总处理数量: ${report.summary.totalProcessed}`);\nconsole.log(`成功发布: ${report.summary.successful}`);\nconsole.log(`发布失败: ${report.summary.failed}`);\nconsole.log(`重复内容: ${report.summary.duplicates}`);\nconsole.log(`成功率: ${report.summary.successRate}%`);\n\nif (publishedArticles.length > 0) {\n  console.log('\\n=== 成功发布的文章 ===');\n  publishedArticles.forEach((article, index) => {\n    console.log(`${index + 1}. ${article.title} (ID: ${article.articleId}, 质量分: ${article.qualityScore})`);\n  });\n}\n\nif (failedArticles.length > 0) {\n  console.log('\\n=== 发布失败的文章 ===');\n  failedArticles.forEach((article, index) => {\n    console.log(`${index + 1}. ${article.title} - 错误: ${article.error}`);\n  });\n}\n\nreturn [report];"
+      },
+      "name": "生成处理报告",
+      "typeVersion": 2,
+      "id": "generate-report",
+      "position": [
+        912,
+        304
+      ],
+      "type": "n8n-nodes-base.code"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3001/api/reports",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "name": "保存处理报告",
+      "typeVersion": 4.2,
+      "id": "save-report",
+      "position": [
+        1136,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest"
+    }
+  "pinData": {},
+  "connections": {
+    "定时触发器": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl搜索新闻",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl搜索新闻": {
+      "main": [
+        [
+          {
+            "node": "火鸟门户数据集成处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "火鸟门户数据集成处理": {
+      "main": [
+        [
+          {
+            "node": "生成处理报告",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成处理报告": {
+      "main": [
+        [
+          {
+            "node": "保存处理报告",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "timezone": "Asia/Shanghai",
+    "executionTimeout": 300,
+    "maxExecutionTimeout": 3600
+  },
+  "versionId": "huoniao-integration-v1.0.0",
+  "meta": {
+    "instanceId": "huoniao-news-integration-workflow",
+    "description": "火鸟门户新闻数据抓取与发布工作流 - 集成Firecrawl搜索和火鸟门户API发布功能",
+    "version": "1.0.0",
+    "author": "AI Assistant",
+    "tags": ["新闻采集", "火鸟门户", "自动化发布", "内容处理"]
+  },
+  "id": "HuoNiaoNewsWorkflow2025",
+  "tags": [
+    {
+      "id": "news-automation",
+      "name": "新闻自动化"
+    },
+    {
+      "id": "huoniao-integration", 
+      "name": "火鸟门户集成"
+    },
+    {
+      "id": "content-processing",
+      "name": "内容处理"
+    }
+  ]
+}

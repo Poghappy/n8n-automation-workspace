@@ -1,0 +1,21 @@
+#! huoniao-portal-service.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: huoniao-portal-published
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: huoniao-portal
+spec:
+    selector:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: huoniao-portal
+    ports:
+        - name: huoniao-po-8080
+          port: 8080
+          protocol: TCP
+          targetPort: huoniao-port-80
+
+# check if there is at least one published port

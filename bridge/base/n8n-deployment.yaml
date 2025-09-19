@@ -1,0 +1,165 @@
+#! n8n-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: n8n
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: n8n
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: n8n-
+            com.docker.compose.service: n8n
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: n8n-
+                com.docker.compose.service: n8n
+                com.docker.compose.network.n8n-network: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: n8n-automation
+                  image: n8nio/n8n:latest
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: DB_POSTGRESDB_DATABASE
+                      value: "n8n"
+                    - name: DB_POSTGRESDB_HOST
+                      value: "postgres"
+                    - name: DB_POSTGRESDB_PASSWORD
+                      value: "dD1beZM+UxZFhnibkDG7CA=="
+                    - name: DB_POSTGRESDB_PORT
+                      value: "5432"
+                    - name: DB_POSTGRESDB_USER
+                      value: "n8n"
+                    - name: DB_TYPE
+                      value: "postgresdb"
+                    - name: EXECUTIONS_DATA_MAX_AGE
+                      value: "336"
+                    - name: EXECUTIONS_DATA_PRUNE
+                      value: "true"
+                    - name: EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS
+                      value: "true"
+                    - name: EXECUTIONS_DATA_SAVE_ON_ERROR
+                      value: "all"
+                    - name: EXECUTIONS_DATA_SAVE_ON_PROGRESS
+                      value: "false"
+                    - name: EXECUTIONS_DATA_SAVE_ON_SUCCESS
+                      value: "all"
+                    - name: EXECUTIONS_MODE
+                      value: "regular"
+                    - name: EXECUTIONS_PROCESS
+                      value: "main"
+                    - name: EXECUTIONS_TIMEOUT
+                      value: "3600"
+                    - name: EXECUTIONS_TIMEOUT_MAX
+                      value: "7200"
+                    - name: GENERIC_TIMEZONE
+                      value: "Asia/Shanghai"
+                    - name: N8N_BASIC_AUTH_ACTIVE
+                      value: "true"
+                    - name: N8N_BASIC_AUTH_PASSWORD
+                      value: "ewz61dhA8gMC81+Af/0kJQ=="
+                    - name: N8N_BASIC_AUTH_USER
+                      value: "admin"
+                    - name: N8N_BINARY_DATA_STORAGE_PATH
+                      value: "/home/node/.n8n/binaryData"
+                    - name: N8N_BINARY_DATA_TTL
+                      value: "24"
+                    - name: N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE
+                      value: "true"
+                    - name: N8N_DEFAULT_BINARY_DATA_MODE
+                      value: "filesystem"
+                    - name: N8N_DIAGNOSTICS_ENABLED
+                      value: "false"
+                    - name: N8N_EMAIL_MODE
+                      value: "smtp"
+                    - name: N8N_ENCRYPTION_KEY
+                      value: "a1b2c3d4e5f6789012345678901234567890abcd"
+                    - name: N8N_HOST
+                      value: "n8n.localhost"
+                    - name: N8N_JWT_AUTH_ACTIVE
+                      value: "true"
+                    - name: N8N_JWT_AUTH_HEADER
+                      value: "authorization"
+                    - name: N8N_JWT_AUTH_HEADER_VALUE_PREFIX
+                      value: "Bearer"
+                    - name: N8N_LOG_FILE_COUNT_MAX
+                      value: "100"
+                    - name: N8N_LOG_FILE_SIZE_MAX
+                      value: "16777216"
+                    - name: N8N_LOG_LEVEL
+                      value: "info"
+                    - name: N8N_LOG_OUTPUT
+                      value: "console,file"
+                    - name: N8N_METRICS
+                      value: "true"
+                    - name: N8N_NODES_INCLUDE
+                      value: "'[\"n8n-nodes-base.*\"]'"
+                    - name: N8N_PAYLOAD_SIZE_MAX
+                      value: "16777216"
+                    - name: N8N_PORT
+                      value: "5678"
+                    - name: N8N_PROTOCOL
+                      value: "http"
+                    - name: N8N_SMTP_HOST
+                      value: ""
+                    - name: N8N_SMTP_PASS
+                      value: ""
+                    - name: N8N_SMTP_PORT
+                      value: "587"
+                    - name: N8N_SMTP_SENDER
+                      value: ""
+                    - name: N8N_SMTP_SSL
+                      value: "true"
+                    - name: N8N_SMTP_USER
+                      value: ""
+                    - name: N8N_USER_MANAGEMENT_JWT_SECRET
+                      value: "dD1beZM+UxZFhnibkDG7CA=="
+                    - name: TZ
+                      value: "Asia/Shanghai"
+                    - name: WEBHOOK_URL
+                      value: "http://n8n.localhost/"
+                    - name: WORKFLOWS_DEFAULT_NAME
+                      value: "My Workflow"
+                  securityContext:
+                    runAsUser: 1000:1000
+                  ports:
+                    - name: n8n-5678
+                      containerPort: 5678
+                  volumeMounts:
+                    - name: home-node--n8n
+                      mountPath: /home/node/.n8n
+                    - name: home-node--n8n-workflows
+                      mountPath: /home/node/.n8n/workflows
+                    - name: home-node--n8n-credentials
+                      mountPath: /home/node/.n8n/credentials
+                    - name: files
+                      mountPath: /files
+                    - name: var-run-docker-sock
+                      mountPath: /var/run/docker.sock
+                      readOnly: true
+            volumes:
+                - name: home-node--n8n
+                  persistentVolumeClaim:
+                    claimName: n8n-n8n-data
+                - name: home-node--n8n-workflows
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/n8n/workflows
+                - name: home-node--n8n-credentials
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/n8n/credentials
+                - name: files
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/local-files
+                - name: var-run-docker-sock
+                  hostPath:
+                    path: /var/run/docker.sock
+                  readOnly: true

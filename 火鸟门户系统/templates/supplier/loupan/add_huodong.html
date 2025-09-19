@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=EDGE">
+	<title>新增活动</title>
+	<meta name="keywords" content="{#$cfg_keywords#}">
+	<meta name="description" content="{#$cfg_description#}">
+	<link rel="stylesheet" type="text/css" media="all" href="{#$cfg_staticPath#}css/core/base.css?v={#$cfg_staticVersion#}" />
+	<link rel="stylesheet" href="{#$cfg_staticPath#}/css/admin/datetimepicker.css?v={#$cfg_staticVersion#}">
+	<link rel="stylesheet" href="{#$cfg_staticPath#}/css/admin/bootstrap.css?v={#$cfg_staticVersion#}">
+	<link rel="stylesheet" href="{#$templets_skin#}css/pub_loupan.css?v={#$cfg_staticVersion#}">
+	<link rel="stylesheet" href="{#$templets_skin#}css/add_huodong.css?v={#$cfg_staticVersion#}">
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/core/jquery-1.8.3.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/vue.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript">
+		var masterDomain = '{#$cfg_basehost#}',
+			staticPath = '{#$cfg_staticPath#}';
+		var hideFileUrl = '{#$cfg_hideUrl#}';
+		var cookiePre = '{#$cfg_cookiePre#}',
+			cfg_clihost = '{#$cfg_clihost#}';
+		var templets = '{#$templets_skin#}';
+
+		var buildtypenames = ['低层', '高层', '小高层', '联排别墅', '公寓']; //建筑类型
+		// var salestatenames = ['新盘待售','在售','尾盘','售罄']; //销售状态
+		// var existingnames = ['现房','期房']; //销售状态
+		var salestate = 0, //销售状态
+			existing = 0, //楼盘状态
+			buildtype = []; //物业类型
+		var thumbSize = '{#$thumbSize#}',
+			thumbType = "{#$thumbType#}", //缩略图配置
+			addrid = '{#$addrid#}',
+			addrListArr = '{#$addrListArr#}',
+			mapCity = "{#$mapCity#}",
+			subwayCity = 0;
+		var peitaoList = [];
+		var imglist = {"list1": '{#$imglist#}',};
+		var currid = 9;
+		var id = "{#$huodonglist.id#}";
+		var loupanid = "{#$loupanid#}";
+		var modelType = 'house';
+	</script>
+</head>
+<body class="w1200">
+	<div id="page">
+		<!-- 头部 -->
+		{#include file="top.html"#}
+		<div class="conbox">
+			{#include file="left.html"#}
+			<!-- 右侧 -->
+			<div class="right_box">
+				<div class="rConBox">
+					<h3>新增活动</h3>
+					<div class="formbox huxingFormbox">
+						<form action="" id="form">
+							<input type="hidden" name="loupanid" value="{#$loupanid#}">
+							<input type="hidden" name="aid" value="{#$huodonglist.id#}">
+							<input type="hidden" name="dopost" value="{#if $huodonglist.id!=''#}edit{#else#}add{#/if#}">
+							<div class="inpbox required">
+								<label><em>* </em>活动标题</label>
+								<div class="inp_div">
+									<div class="inp "><input type="text" name="title" placeholder="请输入活动标题" data-regex=".{3,60}" value="{#$huodonglist.title#}"></div>
+								</div>
+							</div>
+
+							<div class="inpbox required">
+								<label><em>* </em>活动封面</label>
+								<div class="inp_div img_upload listImgBox">
+									<input type="hidden" name="litpic" class="imglist-hidden" placeholder="请上传活动封面"/>
+									<div class="imgbox" >
+										<div class="upload_btn filePicker uploadinp {#if $huodonglist.litpic != ""#}hide{#/if#}" id="filePicker1" data-type="thumb"  data-count="1" data-size="{#$thumbSize#}" data-imglist="">
+											<s></s>
+											<p>点击上传图片</p>
+										</div>
+										<div class="imgShow">
+											<ul id="listSection1" class="listSection thumblist">
+												{#if $huodonglist.litpic#}
+												<li  id="WU_FILE_0" class="pubitem"><a href="{#$cfg_basehost#}/include/attachment.php?f={#$huodonglist.litpic#}" target="_blank" title="" class="enlarge"><img src="{#$cfg_basehost#}/include/attachment.php?f={#$huodonglist.litpic#}" data-val="{#$huodonglist.litpic#}" data-url="{#$cfg_basehost#}/include/attachment.php?f={#$huodonglist.litpic#}"></a><a class="reupload li-rm" href="javascript:;">重新上传</a></li>
+												{#/if#}
+											</ul>
+											<!-- <div class="reupload">重新上传</div> -->
+										</div>
+									</div>
+									<p class="tip">推荐尺寸500像素*390像素</p>
+								</div>
+							</div>
+
+
+
+
+
+							<div class="inpbox required">
+								<label><em>* </em>活动开始时间</label>
+								<div class="inp_div sel_inp">
+										<div class="inp "><input name="ktime" id="hdStart" type="text" value="{#$huodonglist.ktime|date_format:'%Y-%m-%d %H:%M:%S'#}"  placeholder="请选择活动开始时间" ><s></s> </div>
+
+								</div>
+							</div>
+							<div class="inpbox required">
+								<label><em>* </em>活动结束时间</label>
+								<div class="inp_div sel_inp">
+										<div class="inp "><input name="etime" id="hdEnd" type="text" value="{#$huodonglist.etime|date_format:'%Y-%m-%d %H:%M:%S'#}"  placeholder="请选择活动结束时间" ><s></s> </div>
+
+								</div>
+							</div>
+
+
+							<a href="javascript:;" class="submit" @click="submit()">确认提交</a>
+						</form>
+						<div class="loading" v-show="loading"><s></s></div>
+					</div>
+				</div>
+			</div>
+			<div class="foot">
+				<div class="foot-bottom">
+					<div class="bottom wrap">
+						版权所有 © {#$smarty.now|date_format:'%Y'#} {#$cfg_shortname#}. All rights reserved.<br />
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div>{#$cfg_statisticscode#}</div>
+</body>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/ui/bootstrap-datetimepicker.min.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$templets_skin#}js/publicUpload_v2.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$templets_skin#}js/public.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/axios.min.js?v={#$cfg_staticVersion#}"></script>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/json.php?action=lang'></script>
+<script type="text/javascript" src="{#$templets_skin#}js/add_huodong.js?v={#$cfg_staticVersion#}"></script>
+
+</html>

@@ -1,0 +1,220 @@
+{
+  "name": "Notion存储节点配置",
+  "description": "完整的Notion存储节点配置，包含数据写入、重试机制、错误处理和状态跟踪",
+  "version": "1.0.0",
+  "createdAt": "2025-08-23T10:30:00.000Z",
+  
+  "storageNode": {
+    "id": "notion-storage-node",
+    "name": "Notion新闻存储",
+    "type": "n8n-nodes-base.notion",
+    "typeVersion": 2,
+    "position": [1780, 200],
+    "parameters": {
+      "resource": "databasePage",
+      "operation": "create",
+      "databaseId": "={{$env.NOTION_DATABASE_ID}}",
+      "title": "={{$json.title.substring(0, 60)}}",
+      "propertiesUi": {
+        "propertyValues": [
+          {
+            "key": "短标题",
+            "type": "rich_text",
+            "richTextValue": "={{$json.subtitle || $json.summary ? $json.summary.substring(0, 36) : ''}}"
+          },
+          {
+            "key": "内容",
+            "type": "rich_text", 
+            "richTextValue": "={{$json.content}}"
+          },
+          {
+            "key": "摘要",
+            "type": "rich_text",
+            "richTextValue": "={{$json.summary || $json.description || ''}}"
+          },
+          {
+            "key": "来源",
+            "type": "select",
+            "selectValue": "={{$json.source || 'API采集'}}"
+          },
+          {
+            "key": "作者", 
+            "type": "rich_text",
+            "richTextValue": "={{$json.author || 'AI采集'}}"
+          },
+          {
+            "key": "原始URL",
+            "type": "url",
+            "urlValue": "={{$json.source_url || ''}}"
+          },
+          {
+            "key": "发布日期",
+            "type": "date",
+            "dateValue": "={{$json.publishedAt || new Date().toISOString()}}"
+          },
+          {
+            "key": "分类ID",
+            "type": "number",
+            "numberValue": "={{$json.categoryId || $json.typeid || 1}}"
+          },
+          {
+            "key": "分类名称",
+            "type": "select",
+            "selectValue": "={{$json.category || '科技资讯'}}"
+          },
+          {
+            "key": "关键词",
+            "type": "multi_select",
+            "multiSelectValue": "={{$json.keywords ? (typeof $json.keywords === 'string' ? $json.keywords.split(',').map(k => k.trim()).filter(k => k) : Array.isArray($json.keywords) ? $json.keywords : []) : []}}"
+          },
+          {
+            "key": "缩略图URL",
+            "type": "url",
+            "urlValue": "={{$json.image_url || $json.litpic || ''}}"
+          },
+          {
+            "key": "质量分数",
+            "type": "number",
+            "numberValue": "={{$json.quality_score || $json.qualityScore || 0}}"
+          },
+          {
+            "key": "处理状态",
+            "type": "select",
+            "selectValue": "已存储"
+          },
+          {
+            "key": "审核状态",
+            "type": "select", 
+            "selectValue": "={{$json.arcrank === 1 ? '已审核' : '未审核'}}"
+          },
+          {
+            "key": "排序权重",
+            "type": "number",
+            "numberValue": "={{$json.weight || 1}}"
+          },
+          {
+            "key": "城市ID",
+            "type": "number",
+            "numberValue": "={{$json.cityid || 1}}"
+          },
+          {
+            "key": "评论开关",
+            "type": "checkbox",
+            "checkboxValue": "={{$json.notpost === 0 || $json.notpost === undefined}}"
+          },
+          {
+            "key": "火鸟文章ID",
+            "type": "number",
+            "numberValue": 0
+          },
+          {
+            "key": "处理时间",
+            "type": "number",
+            "numberValue": "={{$json.processingTime || 0}}"
+          },
+          {
+            "key": "请求ID",
+            "type": "rich_text",
+            "richTextValue": "={{$execution.id}}-{{$runIndex}}-{{Date.now()}}"
+          }
+        ]
+      },
+      "options": {
+        "iconType": "emoji",
+        "iconEmoji": "📰"
+      }
+    },
+    "credentials": {
+      "notionApi": {
+        "id": "notion_api_credentials",
+        "name": "Notion API凭据"
+      }
+    },
+    "retryOnFail": true,
+    "maxTries": 3,
+    "waitBetweenTries": 5000,
+    "continueOnFail": false,
+    "alwaysOutputData": false
+  },
+
+  "retryLogicNode": {
+    "id": "notion-retry-handler",
+    "name": "Notion存储重试处理",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [1600, 200],
+    "parameters": {
+      "functionCode": "const inputData = $input.first().json;\nconst maxRetries = 3;\nconst baseDelay = 1000;\n\nconst currentRetry = $execution.customData?.notionRetryCount || 0;\n\nfunction calculateDelay(retryCount) {\n  return baseDelay * Math.pow(2, retryCount);\n}\n\nfunction validateNotionData(data) {\n  const errors = [];\n  \n  if (!data.title || data.title.trim().length === 0) {\n    errors.push('标题不能为空');\n  }\n  \n  if (!data.content || data.content.trim().length === 0) {\n    errors.push('内容不能为空');\n  }\n  \n  if (data.title && data.title.length > 60) {\n    errors.push(`标题过长: ${data.title.length}/60`);\n  }\n  \n  return errors;\n}\n\nfunction sanitizeNotionData(data) {\n  const sanitized = { ...data };\n  \n  if (sanitized.title) {\n    sanitized.title = sanitized.title.trim().substring(0, 60);\n  }\n  \n  if (sanitized.summary) {\n    sanitized.summary = sanitized.summary.trim().substring(0, 255);\n  }\n  \n  if (sanitized.author) {\n    sanitized.author = sanitized.author.trim().substring(0, 20);\n  }\n  \n  if (sanitized.source) {\n    sanitized.source = sanitized.source.trim().substring(0, 30);\n  }\n  \n  sanitized.categoryId = parseInt(sanitized.categoryId || sanitized.typeid || 1);\n  sanitized.quality_score = parseFloat(sanitized.quality_score || sanitized.qualityScore || 0);\n  sanitized.weight = parseInt(sanitized.weight || 1);\n  sanitized.cityid = parseInt(sanitized.cityid || 1);\n  \n  if (!sanitized.publishedAt) {\n    sanitized.publishedAt = new Date().toISOString();\n  }\n  \n  sanitized.processingTime = Date.now() - (sanitized.startTime || Date.now());\n  \n  return sanitized;\n}\n\ntry {\n  const validationErrors = validateNotionData(inputData);\n  if (validationErrors.length > 0) {\n    throw new Error(`数据验证失败: ${validationErrors.join(', ')}`);\n  }\n  \n  const sanitizedData = sanitizeNotionData(inputData);\n  \n  const notionData = {\n    ...sanitizedData,\n    storageAttempt: currentRetry + 1,\n    storageTimestamp: new Date().toISOString(),\n    executionId: $execution.id,\n    runIndex: $runIndex\n  };\n  \n  console.log(`准备存储到Notion (尝试 ${currentRetry + 1}/${maxRetries}):`, {\n    title: notionData.title,\n    source: notionData.source,\n    categoryId: notionData.categoryId\n  });\n  \n  return {\n    json: notionData\n  };\n  \n} catch (error) {\n  console.error(`Notion存储准备失败 (尝试 ${currentRetry + 1}/${maxRetries}):`, error.message);\n  \n  if (currentRetry < maxRetries - 1) {\n    const delay = calculateDelay(currentRetry);\n    console.log(`将在 ${delay}ms 后重试...`);\n    \n    $execution.customData = $execution.customData || {};\n    $execution.customData.notionRetryCount = currentRetry + 1;\n    \n    return {\n      json: {\n        ...inputData,\n        retryAttempt: currentRetry + 1,\n        retryDelay: delay,\n        lastError: error.message\n      }\n    };\n  } else {\n    throw new Error(`Notion存储最终失败 (${maxRetries}次尝试): ${error.message}`);\n  }\n}"
+    }
+  },
+
+  "statusTrackingNode": {
+    "id": "notion-status-tracker",
+    "name": "Notion存储状态跟踪",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2000, 200],
+    "parameters": {
+      "functionCode": "const notionResponse = $input.first().json;\nconst originalData = $input.first().json.originalData || {};\n\nconst isSuccess = notionResponse && notionResponse.id;\nconst notionPageId = notionResponse.id;\nconst notionUrl = notionResponse.url;\n\nconst statusRecord = {\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  timestamp: new Date().toISOString(),\n  \n  storageStatus: isSuccess ? 'success' : 'failed',\n  notionPageId: notionPageId || null,\n  notionUrl: notionUrl || null,\n  \n  contentInfo: {\n    title: originalData.title || notionResponse.properties?.['标题']?.title?.[0]?.plain_text || 'Unknown',\n    source: originalData.source || notionResponse.properties?.['来源']?.select?.name || 'Unknown',\n    category: originalData.category || notionResponse.properties?.['分类名称']?.select?.name || 'Unknown',\n    qualityScore: originalData.quality_score || 0\n  },\n  \n  performance: {\n    processingTime: originalData.processingTime || 0,\n    storageAttempts: originalData.storageAttempt || 1,\n    totalTime: Date.now() - (originalData.startTime || Date.now())\n  },\n  \n  error: isSuccess ? null : {\n    message: notionResponse.error || 'Unknown error',\n    code: notionResponse.code || 'UNKNOWN',\n    details: notionResponse.details || null\n  }\n};\n\nif (isSuccess) {\n  console.log('✅ Notion存储成功:', {\n    pageId: notionPageId,\n    title: statusRecord.contentInfo.title,\n    source: statusRecord.contentInfo.source,\n    attempts: statusRecord.performance.storageAttempts,\n    totalTime: statusRecord.performance.totalTime + 'ms'\n  });\n} else {\n  console.error('❌ Notion存储失败:', {\n    title: statusRecord.contentInfo.title,\n    error: statusRecord.error?.message,\n    attempts: statusRecord.performance.storageAttempts\n  });\n}\n\nconst outputData = {\n  storageSuccess: isSuccess,\n  notionPageId: notionPageId,\n  notionUrl: notionUrl,\n  \n  ...originalData,\n  \n  notion: {\n    pageId: notionPageId,\n    url: notionUrl,\n    storedAt: new Date().toISOString(),\n    attempts: statusRecord.performance.storageAttempts\n  },\n  \n  statusRecord: statusRecord,\n  \n  processing_status: isSuccess ? 'stored' : 'storage_failed'\n};\n\nif (isSuccess) {\n  outputData.readyForPublish = true;\n  outputData.publishData = {\n    service: 'article',\n    action: 'put',\n    title: originalData.title?.substring(0, 60) || '',\n    typeid: originalData.categoryId || 1,\n    body: originalData.content || '',\n    writer: originalData.author || 'AI采集',\n    source: originalData.source || 'AI采集',\n    sourceurl: originalData.source_url || '',\n    keywords: typeof originalData.keywords === 'string' \n      ? originalData.keywords.substring(0, 50)\n      : (Array.isArray(originalData.keywords) \n          ? originalData.keywords.join(',').substring(0, 50)\n          : ''),\n    description: originalData.summary?.substring(0, 255) || '',\n    litpic: originalData.image_url || ''\n  };\n}\n\nreturn {\n  json: outputData\n};"
+    }
+  },
+
+  "errorHandlingNode": {
+    "id": "notion-error-handler",
+    "name": "Notion存储错误处理",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2000, 400],
+    "parameters": {
+      "functionCode": "const errorData = $input.first().json;\nconst error = errorData.error || 'Unknown error';\n\nfunction categorizeError(errorMessage) {\n  const errorMsg = errorMessage.toLowerCase();\n  \n  if (errorMsg.includes('unauthorized') || errorMsg.includes('invalid token')) {\n    return {\n      type: 'authentication',\n      severity: 'high',\n      recoverable: false,\n      action: 'check_credentials'\n    };\n  }\n  \n  if (errorMsg.includes('rate limit') || errorMsg.includes('too many requests')) {\n    return {\n      type: 'rate_limit',\n      severity: 'medium',\n      recoverable: true,\n      action: 'retry_with_delay'\n    };\n  }\n  \n  if (errorMsg.includes('database') || errorMsg.includes('not found')) {\n    return {\n      type: 'database_error',\n      severity: 'high',\n      recoverable: false,\n      action: 'check_database_config'\n    };\n  }\n  \n  return {\n    type: 'unknown',\n    severity: 'medium',\n    recoverable: true,\n    action: 'retry'\n  };\n}\n\nconst errorCategory = categorizeError(error);\nconst errorReport = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  error: {\n    message: error,\n    category: errorCategory,\n    originalData: errorData.originalData || {}\n  },\n  \n  contentInfo: {\n    title: errorData.originalData?.title || 'Unknown',\n    source: errorData.originalData?.source || 'Unknown',\n    category: errorData.originalData?.category || 'Unknown'\n  },\n  \n  recovery: {\n    recommended: errorCategory.action,\n    canRetry: errorCategory.recoverable,\n    severity: errorCategory.severity\n  }\n};\n\nconsole.error('🚨 Notion存储错误:', {\n  title: errorReport.contentInfo.title,\n  error: error,\n  category: errorCategory.type,\n  severity: errorCategory.severity,\n  recoverable: errorCategory.recoverable\n});\n\nlet shouldContinueWorkflow = false;\nlet alternativeAction = null;\n\nswitch (errorCategory.type) {\n  case 'validation_error':\n    shouldContinueWorkflow = true;\n    alternativeAction = 'fix_and_retry';\n    break;\n    \n  case 'rate_limit':\n    shouldContinueWorkflow = true;\n    alternativeAction = 'delay_and_retry';\n    break;\n    \n  case 'network_error':\n    shouldContinueWorkflow = true;\n    alternativeAction = 'retry';\n    break;\n    \n  case 'authentication':\n  case 'database_error':\n    shouldContinueWorkflow = false;\n    alternativeAction = 'manual_intervention';\n    break;\n    \n  default:\n    shouldContinueWorkflow = true;\n    alternativeAction = 'continue_with_warning';\n}\n\nconst outputData = {\n  errorHandled: true,\n  shouldContinue: shouldContinueWorkflow,\n  alternativeAction: alternativeAction,\n  \n  errorReport: errorReport,\n  \n  originalData: errorData.originalData || {},\n  \n  processing_status: 'storage_failed'\n};\n\nif (shouldContinueWorkflow) {\n  outputData.storageSuccess = false;\n  outputData.continueWorkflow = true;\n  outputData.readyForPublish = true;\n  outputData.publishData = {\n    service: 'article',\n    action: 'put',\n    title: (errorData.originalData?.title || '').substring(0, 60),\n    typeid: errorData.originalData?.categoryId || 1,\n    body: errorData.originalData?.content || '',\n    writer: errorData.originalData?.author || 'AI采集',\n    source: errorData.originalData?.source || 'AI采集'\n  };\n  \n  outputData.notionStorageError = error;\n  outputData.notionStorageFailed = true;\n}\n\nif (errorCategory.severity === 'high') {\n  console.error('🚨 严重错误需要人工干预:', {\n    error: error,\n    category: errorCategory.type,\n    contentTitle: errorReport.contentInfo.title\n  });\n}\n\nreturn {\n  json: outputData\n};"
+    }
+  },
+
+  "workflowIntegration": {
+    "description": "将Notion存储节点集成到现有工作流的配置",
+    "insertAfterNode": "成功处理统计"
+  },
+
+  "environmentVariables": {
+    "required": [
+      "NOTION_API_TOKEN",
+      "NOTION_DATABASE_ID"
+    ],
+    "optional": [
+      "NOTION_RETRY_MAX_ATTEMPTS",
+      "NOTION_RETRY_BASE_DELAY",
+      "NOTION_TIMEOUT"
+    ],
+    "defaults": {
+      "NOTION_RETRY_MAX_ATTEMPTS": "3",
+      "NOTION_RETRY_BASE_DELAY": "1000",
+      "NOTION_TIMEOUT": "30000"
+    }
+  },
+
+  "monitoring": {
+    "metrics": [
+      "notion_storage_success_rate",
+      "notion_storage_response_time",
+      "notion_storage_retry_count",
+      "notion_storage_error_rate"
+    ],
+    "alerts": [
+      {
+        "condition": "notion_storage_success_rate < 95%",
+        "severity": "warning",
+        "message": "Notion存储成功率低于95%"
+      },
+      {
+        "condition": "notion_storage_response_time > 10000",
+        "severity": "warning",
+        "message": "Notion存储响应时间超过10秒"
+      },
+      {
+        "condition": "notion_storage_error_rate > 5%",
+        "severity": "critical",
+        "message": "Notion存储错误率超过5%"
+      }
+    ]
+  }
+}

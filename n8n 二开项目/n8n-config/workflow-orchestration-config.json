@@ -1,0 +1,1240 @@
+{
+  "name": "工作流编排和数据流控制配置",
+  "description": "完整的工作流编排配置，包含条件分支、错误处理路径、状态监控和数据流验证",
+  "version": "1.0.0",
+  "createdAt": "2025-08-23T14:00:00.000Z",
+  
+  "workflowOrchestration": {
+    "description": "工作流编排核心配置",
+    
+    "dataFlowControl": {
+      "description": "数据流控制和路由配置",
+      
+      "conditionalBranching": {
+        "contentProcessingFilter": {
+          "nodeId": "content-processing-filter",
+          "condition": "status === 'processed'",
+          "trueOutput": "notion-storage-prep",
+          "falseOutput": "error-handling",
+          "description": "根据内容处理状态决定是否继续到Notion存储"
+        },
+        
+        "storageConditionCheck": {
+          "nodeId": "storage-condition-check", 
+          "condition": "storageSuccess === true",
+          "trueOutput": "ai-management",
+          "falseOutput": "workflow-completion",
+          "description": "根据Notion存储结果决定是否进行AI管理"
+        },
+        
+        "aiDecisionRouter": {
+          "nodeId": "ai-decision-router",
+          "type": "switch",
+          "conditions": {
+            "publish": {
+              "condition": "nextAction === 'publish'",
+              "output": "firebird-publish-prep",
+              "description": "AI建议发布，进入火鸟门户发布流程"
+            },
+            "reject": {
+              "condition": "nextAction === 'reject'",
+              "output": "content-rejection-handler",
+              "description": "AI建议拒绝，进入拒绝处理流程"
+            },
+            "revise": {
+              "condition": "nextAction === 'revise'",
+              "output": "content-revision-handler", 
+              "description": "AI建议修改，进入修改处理流程"
+            },
+            "hold": {
+              "condition": "nextAction === 'hold'",
+              "output": "content-hold-handler",
+              "description": "AI建议暂停，进入暂停处理流程"
+            }
+          },
+          "fallbackOutput": "firebird-publish-prep",
+          "description": "根据AI决策路由到不同的处理分支"
+        }
+      },
+      
+      "errorHandlingPaths": {
+        "globalErrorHandler": {
+          "nodeId": "global-error-handler",
+          "triggers": [
+            "rss-collector.error",
+            "github-collector.error", 
+            "content-processor.error",
+            "notion-storage.error",
+            "ai-management.error",
+            "firebird-publish.error"
+          ],
+          "errorCategories": {
+            "network_error": {
+              "action": "retry_with_delay",
+              "maxRetries": 3,
+              "backoffMultiplier": 2,
+              "continueWorkflow": true
+            },
+            "authentication_error": {
+              "action": "manual_intervention",
+              "continueWorkflow": false,
+              "alertSeverity": "critical"
+            },
+            "rate_limit_error": {
+              "action": "exponential_backoff",
+              "maxRetries": 5,
+              "continueWorkflow": true
+            },
+            "validation_error": {
+              "action": "skip_item",
+              "continueWorkflow": true,
+              "logLevel": "warning"
+            },
+            "content_processing_error": {
+              "action": "skip_item",
+              "continueWorkflow": true,
+              "fallbackProcessing": true
+            }
+          },
+          "description": "全局错误处理，根据错误类型采取不同的恢复策略"
+        },
+        
+        "retryMechanisms": {
+          "notionStorageRetry": {
+            "nodeId": "notion-retry-handler",
+            "maxAttempts": 3,
+            "baseDelay": 1000,
+            "backoffStrategy": "exponential",
+            "retryableErrors": ["timeout", "rate_limit", "temporary_failure"],
+            "nonRetryableErrors": ["authentication", "validation", "permission_denied"]
+          },
+          
+          "firebirdPublishRetry": {
+            "nodeId": "firebird-publish-node",
+            "maxAttempts": 3,
+            "baseDelay": 5000,
+            "backoffStrategy": "linear",
+            "retryableErrors": ["network_timeout", "server_error_5xx"],
+            "nonRetryableErrors": ["authentication_failed", "validation_error"]
+          }
+        }
+      },
+      
+      "dataValidation": {
+        "inputValidation": {
+          "contentProcessing": {
+            "requiredFields": ["title", "content", "source"],
+            "fieldConstraints": {
+              "title": {
+                "minLength": 5,
+                "maxLength": 200,
+                "pattern": "^[\\s\\S]+$"
+              },
+              "content": {
+                "minLength": 50,
+                "maxLength": 10000
+              },
+              "source": {
+                "minLength": 1,
+                "maxLength": 50
+              }
+            },
+            "validationAction": "reject_invalid"
+          },
+          
+          "notionStorage": {
+            "requiredFields": ["title", "content", "categoryId"],
+            "fieldConstraints": {
+              "title": {
+                "maxLength": 60
+              },
+              "summary": {
+                "maxLength": 255
+              },
+              "author": {
+                "maxLength": 20
+              },
+              "source": {
+                "maxLength": 30
+              },
+              "keywords": {
+                "maxLength": 50
+              }
+            },
+            "sanitization": {
+              "trimWhitespace": true,
+              "removeHtmlTags": false,
+              "normalizeEncoding": true
+            }
+          },
+          
+          "firebirdPublish": {
+            "requiredFields": ["service", "action", "title", "typeid", "body"],
+            "fieldConstraints": {
+              "title": {
+                "maxLength": 60
+              },
+              "body": {
+                "minLength": 50
+              },
+              "writer": {
+                "maxLength": 20
+              },
+              "source": {
+                "maxLength": 30
+              },
+              "keywords": {
+                "maxLength": 50
+              },
+              "description": {
+                "maxLength": 255
+              },
+              "sourceurl": {
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        
+        "dataIntegrityChecks": {
+          "duplicateDetection": {
+            "enabled": true,
+            "similarityThreshold": 0.8,
+            "comparisonFields": ["title", "content"],
+            "action": "skip_duplicate"
+          },
+          
+          "qualityAssessment": {
+            "enabled": true,
+            "minimumQualityScore": 60,
+            "qualityFactors": [
+              "content_length",
+              "title_quality", 
+              "source_reliability",
+              "language_quality"
+            ],
+            "action": "flag_low_quality"
+          },
+          
+          "contentConsistency": {
+            "enabled": true,
+            "checks": [
+              "title_content_relevance",
+              "category_content_match",
+              "source_url_validity"
+            ],
+            "action": "warn_inconsistency"
+          }
+        }
+      }
+    },
+    
+    "stateMonitoring": {
+      "description": "工作流状态监控和进度跟踪",
+      
+      "progressTracking": {
+        "totalSteps": 8,
+        "stepDefinitions": {
+          "1": {
+            "name": "initialization",
+            "description": "工作流初始化和数据源配置",
+            "estimatedDuration": "5s",
+            "criticalPath": true
+          },
+          "2": {
+            "name": "data_collection", 
+            "description": "RSS和GitHub数据采集",
+            "estimatedDuration": "30-60s",
+            "criticalPath": true
+          },
+          "3": {
+            "name": "data_processing",
+            "description": "数据合并和质量控制",
+            "estimatedDuration": "10-20s",
+            "criticalPath": true
+          },
+          "4": {
+            "name": "content_processing",
+            "description": "智能内容处理和优化",
+            "estimatedDuration": "20-40s",
+            "criticalPath": true
+          },
+          "5": {
+            "name": "notion_storage",
+            "description": "Notion数据库存储",
+            "estimatedDuration": "10-30s",
+            "criticalPath": false
+          },
+          "6": {
+            "name": "ai_management",
+            "description": "AI智能管理和决策",
+            "estimatedDuration": "15-30s",
+            "criticalPath": true
+          },
+          "7": {
+            "name": "firebird_publish",
+            "description": "火鸟门户发布",
+            "estimatedDuration": "10-20s",
+            "criticalPath": true
+          },
+          "8": {
+            "name": "completion",
+            "description": "工作流完成和统计",
+            "estimatedDuration": "5s",
+            "criticalPath": false
+          }
+        },
+        
+        "milestones": {
+          "data_collected": {
+            "step": 2,
+            "condition": "rssItems.length > 0 || githubItems.length > 0",
+            "description": "至少收集到一条数据"
+          },
+          "content_processed": {
+            "step": 4,
+            "condition": "status === 'processed'",
+            "description": "内容成功处理"
+          },
+          "storage_completed": {
+            "step": 5,
+            "condition": "storageSuccess === true",
+            "description": "数据成功存储到Notion"
+          },
+          "ai_decision_made": {
+            "step": 6,
+            "condition": "aiManagement.decision.action !== null",
+            "description": "AI完成决策"
+          },
+          "publish_completed": {
+            "step": 7,
+            "condition": "publishSuccess === true",
+            "description": "成功发布到火鸟门户"
+          }
+        }
+      },
+      
+      "performanceMetrics": {
+        "executionTime": {
+          "target": "< 5 minutes",
+          "warning": "> 3 minutes",
+          "critical": "> 10 minutes",
+          "measurement": "total_workflow_duration"
+        },
+        
+        "throughput": {
+          "target": "> 10 items/execution",
+          "warning": "< 5 items/execution", 
+          "critical": "< 1 item/execution",
+          "measurement": "items_processed_per_execution"
+        },
+        
+        "successRate": {
+          "target": "> 95%",
+          "warning": "< 90%",
+          "critical": "< 80%",
+          "measurement": "successful_publishes / total_attempts"
+        },
+        
+        "errorRate": {
+          "target": "< 2%",
+          "warning": "> 5%",
+          "critical": "> 10%",
+          "measurement": "errors / total_operations"
+        },
+        
+        "qualityScore": {
+          "target": "> 80",
+          "warning": "< 70",
+          "critical": "< 60",
+          "measurement": "average_content_quality_score"
+        }
+      },
+      
+      "healthChecks": {
+        "systemHealth": {
+          "interval": "every_execution",
+          "checks": [
+            {
+              "name": "external_apis_available",
+              "description": "检查外部API可用性",
+              "endpoints": [
+                "https://www.theneuron.ai/feed",
+                "https://api.github.com",
+                "https://api.notion.com",
+                "https://hawaiihub.net/include/ajax.php"
+              ],
+              "timeout": 10000,
+              "action": "warn_if_unavailable"
+            },
+            {
+              "name": "credentials_valid",
+              "description": "验证API凭据有效性",
+              "credentials": [
+                "OPENAI_API_KEY",
+                "NOTION_API_TOKEN", 
+                "HUONIAO_SESSION_ID"
+              ],
+              "action": "fail_if_invalid"
+            },
+            {
+              "name": "storage_capacity",
+              "description": "检查存储容量",
+              "thresholds": {
+                "warning": "80%",
+                "critical": "95%"
+              },
+              "action": "alert_if_exceeded"
+            }
+          ]
+        },
+        
+        "dataQualityChecks": {
+          "interval": "per_item",
+          "checks": [
+            {
+              "name": "content_completeness",
+              "description": "检查内容完整性",
+              "requiredFields": ["title", "content", "source"],
+              "action": "reject_incomplete"
+            },
+            {
+              "name": "content_quality",
+              "description": "评估内容质量",
+              "minQualityScore": 60,
+              "action": "flag_low_quality"
+            },
+            {
+              "name": "duplicate_detection",
+              "description": "检测重复内容",
+              "similarityThreshold": 0.8,
+              "action": "skip_duplicate"
+            }
+          ]
+        }
+      }
+    },
+    
+    "logging": {
+      "description": "统一日志记录系统配置",
+      
+      "logLevels": {
+        "error": 0,
+        "warn": 1, 
+        "info": 2,
+        "debug": 3,
+        "trace": 4
+      },
+      
+      "logCategories": {
+        "workflow": {
+          "description": "工作流执行日志",
+          "level": "info",
+          "enabled": true,
+          "includeMetadata": true,
+          "format": "structured"
+        },
+        "performance": {
+          "description": "性能指标日志",
+          "level": "info", 
+          "enabled": true,
+          "includeTimings": true,
+          "includeMemoryUsage": true
+        },
+        "error": {
+          "description": "错误和异常日志",
+          "level": "error",
+          "enabled": true,
+          "includeStackTrace": true,
+          "includeContext": true
+        },
+        "audit": {
+          "description": "审计日志",
+          "level": "info",
+          "enabled": true,
+          "includeUserActions": true,
+          "includeDataChanges": true
+        },
+        "security": {
+          "description": "安全相关日志",
+          "level": "warn",
+          "enabled": true,
+          "includeAuthEvents": true,
+          "includeAccessAttempts": true
+        }
+      },
+      
+      "logDestinations": {
+        "console": {
+          "enabled": true,
+          "format": "json",
+          "colorize": false,
+          "timestamp": true,
+          "level": "info"
+        },
+        "file": {
+          "enabled": true,
+          "path": "./logs/workflow-execution.log",
+          "maxSize": "10MB",
+          "maxFiles": 5,
+          "format": "json",
+          "level": "debug"
+        },
+        "database": {
+          "enabled": false,
+          "connectionString": "${LOG_DATABASE_URL}",
+          "tableName": "workflow_logs",
+          "batchSize": 100,
+          "flushInterval": 5000
+        }
+      },
+      
+      "structuredLogging": {
+        "enabled": true,
+        "fields": {
+          "timestamp": "ISO8601",
+          "level": "string",
+          "category": "string", 
+          "executionId": "string",
+          "nodeId": "string",
+          "nodeName": "string",
+          "message": "string",
+          "metadata": "object",
+          "duration": "number",
+          "memoryUsage": "object",
+          "error": "object"
+        },
+        "sanitization": {
+          "removeCredentials": true,
+          "maskSensitiveData": true,
+          "maxFieldLength": 1000
+        }
+      }
+    },
+    
+    "monitoring": {
+      "description": "实时监控和指标收集",
+      
+      "metricsCollection": {
+        "enabled": true,
+        "interval": 30000,
+        "retention": "7d",
+        
+        "systemMetrics": {
+          "cpuUsage": {
+            "enabled": true,
+            "threshold": {
+              "warning": 70,
+              "critical": 90
+            }
+          },
+          "memoryUsage": {
+            "enabled": true,
+            "threshold": {
+              "warning": 80,
+              "critical": 95
+            }
+          },
+          "diskUsage": {
+            "enabled": true,
+            "threshold": {
+              "warning": 85,
+              "critical": 95
+            }
+          }
+        },
+        
+        "workflowMetrics": {
+          "executionCount": {
+            "enabled": true,
+            "aggregation": "count",
+            "timeWindow": "1h"
+          },
+          "executionDuration": {
+            "enabled": true,
+            "aggregation": ["avg", "min", "max", "p95"],
+            "timeWindow": "1h"
+          },
+          "successRate": {
+            "enabled": true,
+            "calculation": "successful_executions / total_executions",
+            "timeWindow": "1h"
+          },
+          "errorRate": {
+            "enabled": true,
+            "calculation": "failed_executions / total_executions", 
+            "timeWindow": "1h"
+          },
+          "throughput": {
+            "enabled": true,
+            "calculation": "items_processed / execution_time",
+            "timeWindow": "1h"
+          }
+        },
+        
+        "contentMetrics": {
+          "itemsCollected": {
+            "enabled": true,
+            "aggregation": "sum",
+            "groupBy": ["source", "category"]
+          },
+          "itemsProcessed": {
+            "enabled": true,
+            "aggregation": "sum",
+            "groupBy": ["status", "quality_score"]
+          },
+          "itemsPublished": {
+            "enabled": true,
+            "aggregation": "sum",
+            "groupBy": ["category", "source"]
+          },
+          "qualityScores": {
+            "enabled": true,
+            "aggregation": ["avg", "min", "max"],
+            "distribution": true
+          }
+        },
+        
+        "apiMetrics": {
+          "responseTime": {
+            "enabled": true,
+            "aggregation": ["avg", "p95", "p99"],
+            "groupBy": ["endpoint", "method"]
+          },
+          "requestCount": {
+            "enabled": true,
+            "aggregation": "count",
+            "groupBy": ["endpoint", "status_code"]
+          },
+          "errorRate": {
+            "enabled": true,
+            "calculation": "error_responses / total_responses",
+            "groupBy": ["endpoint"]
+          }
+        }
+      },
+      
+      "performanceAnalysis": {
+        "enabled": true,
+        "analysisInterval": "5m",
+        
+        "bottleneckDetection": {
+          "enabled": true,
+          "thresholds": {
+            "nodeExecutionTime": 30000,
+            "memoryUsage": "100MB",
+            "apiResponseTime": 5000
+          },
+          "actions": ["log", "alert", "optimize"]
+        },
+        
+        "trendAnalysis": {
+          "enabled": true,
+          "timeWindows": ["1h", "24h", "7d"],
+          "metrics": [
+            "execution_duration",
+            "success_rate", 
+            "error_rate",
+            "throughput",
+            "quality_score"
+          ],
+          "alertOnTrends": {
+            "degradation": {
+              "threshold": "10%",
+              "timeWindow": "1h"
+            },
+            "improvement": {
+              "threshold": "20%",
+              "timeWindow": "1h"
+            }
+          }
+        },
+        
+        "capacityPlanning": {
+          "enabled": true,
+          "projectionPeriod": "30d",
+          "growthFactors": {
+            "dataVolume": 1.2,
+            "executionFrequency": 1.1,
+            "processingComplexity": 1.05
+          },
+          "resourceRecommendations": true
+        }
+      },
+      
+      "healthChecks": {
+        "enabled": true,
+        "interval": 60000,
+        
+        "checks": {
+          "workflowHealth": {
+            "enabled": true,
+            "checks": [
+              "last_execution_success",
+              "execution_frequency_normal",
+              "error_rate_acceptable"
+            ],
+            "timeout": 30000
+          },
+          "externalServices": {
+            "enabled": true,
+            "services": [
+              {
+                "name": "OpenAI API",
+                "url": "https://api.openai.com/v1/models",
+                "method": "GET",
+                "timeout": 10000,
+                "expectedStatus": 200
+              },
+              {
+                "name": "Notion API",
+                "url": "https://api.notion.com/v1/users/me",
+                "method": "GET", 
+                "timeout": 10000,
+                "expectedStatus": 200
+              },
+              {
+                "name": "火鸟门户API",
+                "url": "https://hawaiihub.net/include/ajax.php",
+                "method": "POST",
+                "timeout": 10000,
+                "expectedStatus": [200, 400]
+              }
+            ]
+          },
+          "dataQuality": {
+            "enabled": true,
+            "checks": [
+              "content_completeness_rate",
+              "duplicate_detection_accuracy",
+              "quality_score_distribution"
+            ],
+            "thresholds": {
+              "completeness": 95,
+              "duplicateRate": 5,
+              "averageQuality": 70
+            }
+          }
+        }
+      }
+    },
+    
+    "alerting": {
+      "description": "告警和通知配置",
+      
+      "alertChannels": {
+        "console": {
+          "enabled": true,
+          "logLevel": "info",
+          "format": "structured",
+          "colorize": true,
+          "includeTimestamp": true
+        },
+        
+        "webhook": {
+          "enabled": true,
+          "url": "${WEBHOOK_ALERT_URL}",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer ${WEBHOOK_TOKEN}"
+          },
+          "retries": 3,
+          "timeout": 10000,
+          "backoffMultiplier": 2
+        },
+        
+        "email": {
+          "enabled": false,
+          "smtp": {
+            "host": "${SMTP_HOST}",
+            "port": 587,
+            "secure": false,
+            "auth": {
+              "user": "${SMTP_USER}",
+              "pass": "${SMTP_PASS}"
+            }
+          },
+          "recipients": ["admin@hawaiihub.net"],
+          "templates": {
+            "critical": "critical-alert-template.html",
+            "warning": "warning-alert-template.html"
+          }
+        },
+        
+        "slack": {
+          "enabled": false,
+          "webhookUrl": "${SLACK_WEBHOOK_URL}",
+          "channel": "#alerts",
+          "username": "n8n-monitor",
+          "iconEmoji": ":warning:"
+        }
+      },
+      
+      "alertRules": {
+        "critical": {
+          "severity": "critical",
+          "conditions": [
+            {
+              "metric": "workflow_failure_rate",
+              "operator": ">",
+              "threshold": 20,
+              "timeWindow": "1h",
+              "description": "工作流失败率超过20%"
+            },
+            {
+              "event": "authentication_error",
+              "description": "API认证失败"
+            },
+            {
+              "metric": "external_service_unavailable_duration",
+              "operator": ">",
+              "threshold": 300000,
+              "description": "外部服务不可用超过5分钟"
+            },
+            {
+              "event": "data_loss_detected",
+              "description": "检测到数据丢失"
+            },
+            {
+              "metric": "memory_usage",
+              "operator": ">",
+              "threshold": 95,
+              "description": "内存使用率超过95%"
+            }
+          ],
+          "channels": ["console", "webhook", "email", "slack"],
+          "escalation": "immediate",
+          "cooldown": 300000,
+          "autoResolve": false
+        },
+        
+        "warning": {
+          "severity": "warning",
+          "conditions": [
+            {
+              "metric": "execution_time",
+              "operator": ">",
+              "threshold": 300000,
+              "timeWindow": "1h",
+              "description": "工作流执行时间超过5分钟"
+            },
+            {
+              "metric": "error_rate",
+              "operator": ">",
+              "threshold": 5,
+              "timeWindow": "1h",
+              "description": "错误率超过5%"
+            },
+            {
+              "metric": "average_quality_score",
+              "operator": "<",
+              "threshold": 70,
+              "timeWindow": "1h",
+              "description": "平均质量分数低于70"
+            },
+            {
+              "event": "storage_failure",
+              "description": "存储操作失败"
+            },
+            {
+              "metric": "api_response_time",
+              "operator": ">",
+              "threshold": 10000,
+              "description": "API响应时间超过10秒"
+            },
+            {
+              "metric": "duplicate_rate",
+              "operator": ">",
+              "threshold": 15,
+              "timeWindow": "1h",
+              "description": "重复内容率超过15%"
+            }
+          ],
+          "channels": ["console", "webhook"],
+          "escalation": "after_3_occurrences",
+          "cooldown": 600000,
+          "autoResolve": true
+        },
+        
+        "info": {
+          "severity": "info",
+          "conditions": [
+            {
+              "event": "workflow_completed",
+              "description": "工作流执行完成"
+            },
+            {
+              "event": "milestone_reached",
+              "description": "达到重要里程碑"
+            },
+            {
+              "metric": "success_rate",
+              "operator": ">",
+              "threshold": 95,
+              "timeWindow": "1h",
+              "description": "成功率超过95%"
+            },
+            {
+              "event": "performance_improvement",
+              "description": "性能指标改善"
+            }
+          ],
+          "channels": ["console"],
+          "escalation": "none",
+          "cooldown": 0,
+          "autoResolve": true
+        }
+      },
+      
+      "alertAggregation": {
+        "enabled": true,
+        "timeWindow": 300000,
+        "maxAlertsPerWindow": 10,
+        "groupBy": ["severity", "category"],
+        "suppressDuplicates": true
+      },
+      
+      "alertEnrichment": {
+        "enabled": true,
+        "includeContext": true,
+        "includeMetrics": true,
+        "includeRecentLogs": 10,
+        "includeTroubleshootingTips": true
+      }
+    },
+    
+    "reporting": {
+      "description": "工作流执行报告和统计",
+      
+      "executionReports": {
+        "enabled": true,
+        "generateOnCompletion": true,
+        "storageLocation": "./logs/execution-reports/",
+        "retentionPeriod": "30d",
+        
+        "reportSections": {
+          "executionSummary": {
+            "enabled": true,
+            "includeFields": [
+              "executionId",
+              "startTime",
+              "endTime", 
+              "duration",
+              "status",
+              "itemsProcessed",
+              "successRate",
+              "errorCount"
+            ]
+          },
+          "performanceMetrics": {
+            "enabled": true,
+            "includeFields": [
+              "totalExecutionTime",
+              "nodeExecutionTimes",
+              "memoryUsage",
+              "cpuUsage",
+              "apiResponseTimes",
+              "throughput"
+            ]
+          },
+          "contentAnalysis": {
+            "enabled": true,
+            "includeFields": [
+              "sourceDistribution",
+              "categoryDistribution",
+              "qualityScoreDistribution",
+              "duplicateDetectionResults",
+              "aiDecisionBreakdown"
+            ]
+          },
+          "errorAnalysis": {
+            "enabled": true,
+            "includeFields": [
+              "errorsByCategory",
+              "errorsByNode",
+              "retryAttempts",
+              "recoveryActions",
+              "errorTrends"
+            ]
+          },
+          "recommendations": {
+            "enabled": true,
+            "includeFields": [
+              "performanceOptimizations",
+              "qualityImprovements",
+              "errorReduction",
+              "capacityPlanning"
+            ]
+          }
+        }
+      },
+      
+      "periodicReports": {
+        "enabled": true,
+        "schedules": {
+          "daily": {
+            "enabled": true,
+            "time": "06:00",
+            "timezone": "Asia/Shanghai",
+            "recipients": ["admin@hawaiihub.net"]
+          },
+          "weekly": {
+            "enabled": true,
+            "day": "monday",
+            "time": "09:00",
+            "timezone": "Asia/Shanghai",
+            "recipients": ["admin@hawaiihub.net", "ops@hawaiihub.net"]
+          },
+          "monthly": {
+            "enabled": false,
+            "day": 1,
+            "time": "10:00",
+            "timezone": "Asia/Shanghai",
+            "recipients": ["admin@hawaiihub.net"]
+          }
+        },
+        
+        "reportContent": {
+          "executionStatistics": {
+            "totalExecutions": true,
+            "successRate": true,
+            "averageExecutionTime": true,
+            "errorRate": true,
+            "throughput": true
+          },
+          "contentStatistics": {
+            "totalItemsProcessed": true,
+            "sourceBreakdown": true,
+            "qualityTrends": true,
+            "publishSuccessRate": true
+          },
+          "performanceTrends": {
+            "executionTimeTrend": true,
+            "errorRateTrend": true,
+            "qualityScoreTrend": true,
+            "throughputTrend": true
+          },
+          "systemHealth": {
+            "uptimePercentage": true,
+            "resourceUtilization": true,
+            "externalServiceHealth": true
+          }
+        }
+      },
+      
+      "dashboards": {
+        "realtime": {
+          "enabled": true,
+          "refreshInterval": 30000,
+          "widgets": [
+            {
+              "type": "metric",
+              "title": "当前执行状态",
+              "metric": "current_execution_status",
+              "format": "status"
+            },
+            {
+              "type": "chart",
+              "title": "执行时间趋势",
+              "metric": "execution_duration",
+              "timeRange": "1h",
+              "chartType": "line"
+            },
+            {
+              "type": "gauge",
+              "title": "成功率",
+              "metric": "success_rate",
+              "timeRange": "1h",
+              "thresholds": [80, 95]
+            },
+            {
+              "type": "counter",
+              "title": "今日处理条目",
+              "metric": "items_processed_today",
+              "format": "number"
+            }
+          ]
+        },
+        
+        "historical": {
+          "enabled": true,
+          "timeRanges": ["1h", "24h", "7d", "30d"],
+          "widgets": [
+            {
+              "type": "chart",
+              "title": "执行统计趋势",
+              "metrics": ["execution_count", "success_rate", "error_rate"],
+              "chartType": "multi-line"
+            },
+            {
+              "type": "heatmap",
+              "title": "执行时间分布",
+              "metric": "execution_duration",
+              "groupBy": ["hour", "day"]
+            },
+            {
+              "type": "pie",
+              "title": "内容来源分布",
+              "metric": "content_sources",
+              "groupBy": "source"
+            }
+          ]
+        }
+      }
+    }
+    }
+  },
+  
+  "deployment": {
+    "description": "部署和配置说明",
+    
+    "environmentVariables": {
+      "required": [
+        "OPENAI_API_KEY",
+        "NOTION_API_TOKEN",
+        "NOTION_DATABASE_ID",
+        "HUONIAO_SESSION_ID"
+      ],
+      "optional": [
+        "GITHUB_TOKEN",
+        "WEBHOOK_ALERT_URL",
+        "SMTP_HOST",
+        "SMTP_USER",
+        "SMTP_PASS"
+      ],
+      "monitoring": [
+        "WORKFLOW_LOG_LEVEL",
+        "PERFORMANCE_MONITORING_ENABLED",
+        "ALERT_WEBHOOK_URL"
+      ]
+    },
+    
+    "n8nConfiguration": {
+      "settings": {
+        "timezone": "Asia/Shanghai",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "errorWorkflow": "error-handling-workflow"
+      },
+      
+      "executionSettings": {
+        "timeout": 600000,
+        "maxExecutionTime": "10 minutes",
+        "retryOnFail": true,
+        "maxRetries": 3,
+        "waitBetweenRetries": 5000
+      }
+    },
+    
+    "monitoring": {
+      "metrics": [
+        "workflow_execution_count",
+        "workflow_success_rate", 
+        "workflow_execution_time",
+        "content_processing_rate",
+        "notion_storage_success_rate",
+        "firebird_publish_success_rate",
+        "ai_decision_accuracy",
+        "error_rate_by_category"
+      ],
+      
+      "dashboards": {
+        "operational": {
+          "panels": [
+            "execution_timeline",
+            "success_rate_trend",
+            "error_rate_by_category",
+            "performance_metrics"
+          ]
+        },
+        
+        "content": {
+          "panels": [
+            "content_sources_distribution",
+            "quality_score_distribution", 
+            "ai_decision_breakdown",
+            "publish_success_rate"
+          ]
+        }
+      }
+    }
+  },
+  
+  "testing": {
+    "description": "测试配置和验证",
+    
+    "testScenarios": {
+      "happy_path": {
+        "description": "正常流程测试",
+        "steps": [
+          "trigger_workflow",
+          "verify_data_collection",
+          "verify_content_processing",
+          "verify_notion_storage",
+          "verify_ai_decision",
+          "verify_firebird_publish",
+          "verify_completion_log"
+        ],
+        "expectedOutcome": "successful_publish"
+      },
+      
+      "error_handling": {
+        "description": "错误处理测试",
+        "scenarios": [
+          {
+            "name": "network_failure",
+            "inject_error": "network_timeout",
+            "expected_behavior": "retry_and_recover"
+          },
+          {
+            "name": "invalid_credentials",
+            "inject_error": "authentication_failure",
+            "expected_behavior": "fail_with_alert"
+          },
+          {
+            "name": "low_quality_content",
+            "inject_error": "quality_below_threshold",
+            "expected_behavior": "ai_rejection"
+          }
+        ]
+      },
+      
+      "performance": {
+        "description": "性能测试",
+        "load_scenarios": [
+          {
+            "name": "normal_load",
+            "items_count": 20,
+            "expected_duration": "< 5 minutes"
+          },
+          {
+            "name": "high_load",
+            "items_count": 50,
+            "expected_duration": "< 10 minutes"
+          }
+        ]
+      }
+    },
+    
+    "validationChecks": {
+      "data_integrity": [
+        "no_data_loss",
+        "consistent_formatting",
+        "proper_field_mapping"
+      ],
+      
+      "workflow_integrity": [
+        "all_branches_reachable",
+        "error_paths_functional",
+        "state_transitions_valid"
+      ],
+      
+      "performance": [
+        "execution_time_within_limits",
+        "memory_usage_acceptable",
+        "api_rate_limits_respected"
+      ]
+    }
+  }
+}

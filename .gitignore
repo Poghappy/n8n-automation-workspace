@@ -1,0 +1,170 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.env
+.venv
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# N8N specific
+.n8n/
+n8n-data/
+
+# Credentials and sensitive files
+*credentials*.json
+*password*
+*secret*
+*key*
+*.pem
+*.p12
+*.pfx
+
+# Backup files
+*.backup
+*.bak
+*.tar.gz
+*.zip
+backup*/
+backups/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker
+.dockerignore
+
+# Downloads and media
+downloads/
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mp3
+*.wav
+*.flac
+
+# Large data files
+data/
+storage/database/
+*.json.gz
+
+# Configuration files with sensitive data
+config/*credentials*
+config/*secret*
+*-credentials.json
+sql-server-credentials.json
+wechat-credentials.json
+
+# Specific project exclusions
+cleanup_backup_*.tar.gz
+full_project_backup_*.tar.gz
+n8n_config_export_*.tar.gz
+security_scan_*.log
+deployment-validation-*.json
+final-validation-*.json
+test-report-*.json
+
+# Problematic directories
+n8n-clean-project/
+
+# 排除包含敏感信息的文档和文件
+02-firebird-portal/src/官方文档/用户操作指南/火鸟门户系统站点使用手册.md
+02-firebird-portal/src/官方文档/用户操作指南/新客户使用引导手册.md
+02-firebird-portal/src/官方文档/系统核心模块/网站后台管理.md
+02-firebird-portal/src/官方文档/基础数据资料/功能详解.md
+火鸟门户系统/官方文档/用户操作指南/火鸟门户系统站点使用手册.md
+火鸟门户系统/官方文档/用户操作指南/新客户使用引导手册.md
+火鸟门户系统/官方文档/系统核心模块/网站后台管理.md
+火鸟门户系统/官方文档/基础数据资料/功能详解.md
+
+# 排除包含敏感信息的vendor文档
+**/vendor/alibabacloud/credentials/README*.md
+**/vendor/huaweicloud/huaweicloud-sdk-php/README*.md

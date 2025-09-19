@@ -1,0 +1,13 @@
+# check if there is at least one published port
+
+#! ai-agent-system-service.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: ai-agent-system-published
+    namespace: n8n-
+spec:
+    type: LoadBalancer
+
+# check if there is at least one published port

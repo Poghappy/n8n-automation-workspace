@@ -1,0 +1,147 @@
+{
+  "project_metadata": {
+    "name": "N8N-自动化集成系统",
+    "version": "1.0.0",
+    "analysis_date": "2024-12-19",
+    "total_projects": 8,
+    "analysis_scope": "complete_codebase",
+    "production_ready": true
+  },
+  "file_tree": {
+    "root": "/Users/zhiledeng/Documents/augment-projects/N8N-自动化",
+    "structure": {
+      "configuration_files": {
+        ".env": {"type": "config", "size": "~2KB", "critical": true, "description": "环境变量配置"},
+        ".dockerignore": {"type": "config", "size": "~1KB", "description": "Docker忽略文件"},
+        "docker-compose.yml": {"type": "config", "size": "~5KB", "description": "Docker容器编排"},
+        "Dockerfile": {"type": "config", "size": "~3KB", "description": "Docker镜像构建"},
+        "package.json": {"type": "config", "size": "~2KB", "description": "Node.js项目配置"},
+        "requirements.txt": {"type": "config", "size": "~1KB", "description": "Python依赖"}
+      },
+      "core_projects": {
+        "01_n8n_automation_core": {
+          "src/": {
+            "agents/": {
+              "teaching_agent.py": {"type": "python", "size": "~45KB", "lines": 1136, "description": "AI智能教学系统"},
+              "workflow_executive.py": {"type": "python", "size": "~42KB", "lines": 1150, "description": "工作流执行智能体"}
+            },
+            "api/": {
+              "main.py": {"type": "python", "size": "~12KB", "lines": 351, "description": "主API服务"},
+              "news_api.py": {"type": "python", "size": "~8KB", "description": "新闻API服务"}
+            },
+            "core/": {
+              "intent_analyzer.py": {"type": "python", "size": "~35KB", "lines": 917, "description": "意图分析核心"}
+            },
+            "knowledge/": {
+              "knowledge_base.py": {"type": "python", "size": "~25KB", "description": "知识库管理"}
+            },
+            "utils/": {
+              "logger.py": {"type": "python", "size": "~3KB", "description": "日志工具"},
+              "config.py": {"type": "python", "size": "~2KB", "description": "配置工具"},
+              "performance.py": {"type": "python", "size": "~2KB", "description": "性能监控"},
+              "security.py": {"type": "python", "size": "~5KB", "description": "安全验证"}
+            }
+          },
+          "workflows/": {"type": "directory", "description": "工作流定义文件"},
+          "scripts/": {"type": "directory", "description": "自动化脚本"}
+        },
+        "02_n8n_development": {
+          "path": "n8n 二开项目/",
+          "type": "php_project",
+          "description": "N8N二次开发项目",
+          "key_files": {
+            "index.php": {"type": "php", "description": "项目入口"},
+            "scripts/": {"type": "directory", "description": "自动化脚本"}
+          }
+        },
+        "03_firebird_portal": {
+          "path": "火鸟门户系统/",
+          "type": "php_web_application",
+          "description": "火鸟门户网站系统",
+          "key_files": {
+            "index.php": {"type": "php", "description": "网站入口"},
+            "admin/": {"type": "directory", "description": "管理后台"},
+            "api/": {"type": "directory", "description": "API接口"}
+          }
+        },
+        "04_youtube_downloader": {
+          "path": "yt下载/",
+          "type": "python_tool",
+          "description": "YouTube视频下载工具",
+          "key_files": {
+            "yt_downloader.py": {"type": "python", "description": "下载脚本"},
+            "downloads/": {"type": "directory", "description": "下载文件存储"}
+          }
+        },
+        "05_news_scraper": {
+          "distributed_files": true,
+          "description": "新闻数据抓取系统",
+          "key_files": {
+            "新闻数据抓取工作流.json": {"type": "json", "description": "工作流配置"},
+            "src/api/news_api.py": {"type": "python", "description": "新闻API服务"}
+          }
+        },
+        "06_learning_materials": {
+          "path": "N8N学习配置文件夹/",
+          "type": "documentation",
+          "description": "N8N学习资料和配置模板"
+        },
+        "07_workflow_project": {
+          "path": "N8N FlorWork/",
+          "type": "workflow_definitions",
+          "description": "N8N工作流项目"
+        },
+        "08_reference_materials": {
+          "path": "references/",
+          "type": "documentation",
+          "description": "参考资料和文档"
+        }
+      }
+    }
+  },
+  "module_dependencies": {
+    "python_modules": {
+      "src.agents.teaching_agent": {
+        "imports": ["mcp", "src.utils.logger", "src.utils.config", "src.utils.nlp", "src.utils.knowledge_base"],
+        "exports": ["TeachingAgentCore", "TeachingMode", "SkillLevel"],
+        "dependency_level": "high"
+      },
+      "src.agents.workflow_executive": {
+        "imports": ["mcp.client.session", "src.utils.logger", "src.utils.config", "src.utils.performance", "src.utils.security"],
+        "exports": ["WorkflowExecutiveAgent", "WorkflowComplexity"],
+        "dependency_level": "high"
+      },
+      "src.api.main": {
+        "imports": ["fastapi", "src.main", "src.core.intent_analyzer"],
+        "exports": ["FastAPI app"],
+        "dependency_level": "medium"
+      },
+      "src.core.intent_analyzer": {
+        "imports": ["jieba", "src.utils.logger", "src.utils.config", "src.utils.nlp"],
+        "exports": ["IntentAnalyzer", "IntentType"],
+        "dependency_level": "high"
+      }
+    },
+    "external_dependencies": {
+      "python": ["fastapi", "uvicorn", "pydantic", "sklearn", "numpy", "jieba", "mcp"],
+      "nodejs": ["axios", "dotenv", "puppeteer"],
+      "system": ["docker", "nginx", "sqlite3"]
+    }
+  },
+  "code_split_recommendations": {
+    "immediate_actions": [
+      "创建独立的项目目录结构",
+      "分离共享配置到shared目录",
+      "统一环境变量管理",
+      "建立清晰的模块边界"
+    ],
+    "project_reorganization": {
+      "01-n8n-automation": {
+        "priority": "high",
+        "files_to_move": ["src/", "workflows/", "scripts/", "config/"],
+        "shared_dependencies": ["nginx/", "ssl/", "logs/"]
+      },
+      "02-n8n-development": {
+        "priority": "medium", 
+        "files_to_move": ["n8n 二开项目/"],
+        "rename_to

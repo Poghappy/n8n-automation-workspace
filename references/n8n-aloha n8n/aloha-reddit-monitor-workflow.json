@@ -1,0 +1,331 @@
+{
+  "name": "🏝️ Aloha Reddit数据监控工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "定时触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/Hawaii/hot.json?limit=25",
+        "options": {
+          "headers": {
+            "User-Agent": "Aloha-Bot/1.0"
+          }
+        }
+      },
+      "id": "reddit-hawaii",
+      "name": "Reddit r/Hawaii",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET", 
+        "url": "https://www.reddit.com/r/Honolulu/hot.json?limit=25",
+        "options": {
+          "headers": {
+            "User-Agent": "Aloha-Bot/1.0"
+          }
+        }
+      },
+      "id": "reddit-honolulu",
+      "name": "Reddit r/Honolulu", 
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/VisitingHawaii/hot.json?limit=25", 
+        "options": {
+          "headers": {
+            "User-Agent": "Aloha-Bot/1.0"
+          }
+        }
+      },
+      "id": "reddit-visiting",
+      "name": "Reddit r/VisitingHawaii",
+      "type": "n8n-nodes-base.httpRequest", 
+      "typeVersion": 4.1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 合并所有Reddit数据并提取关键信息\nconst allPosts = [];\n\n// 处理每个输入项\nfor (const inputData of $input.all()) {\n  const data = inputData.json;\n  \n  if (data && data.data && data.data.children) {\n    for (const post of data.data.children) {\n      const postData = post.data;\n      \n      // 过滤相关内容\n      const relevantKeywords = ['住宿', '价格', '文化', '本地', '游客', 'expensive', 'cheap', 'local', 'tourist', 'culture', 'aloha', 'mai tai', 'waikiki'];\n      const title = postData.title.toLowerCase();\n      const selftext = (postData.selftext || '').toLowerCase();\n      \n      const isRelevant = relevantKeywords.some(keyword => \n        title.includes(keyword) || selftext.includes(keyword)\n      );\n      \n      if (isRelevant && postData.score > 5) {\n        allPosts.push({\n          id: postData.id,\n          title: postData.title,\n          content: postData.selftext,\n          score: postData.score,\n          num_comments: postData.num_comments,\n          created_utc: postData.created_utc,\n          subreddit: postData.subreddit,\n          url: `https://reddit.com${postData.permalink}`,\n          author: postData.author,\n          collected_at: new Date().toISOString()\n        });\n      }\n    }\n  }\n}\n\n// 按分数排序，取前20个\nallPosts.sort((a, b) => b.score - a.score);\nconst topPosts = allPosts.slice(0, 20);\n\nreturn topPosts.map(post => ({ json: post }));"
+      },
+      "id": "data-processor",
+      "name": "数据处理器",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "你是一个专门分析夏威夷本地用户需求的AI助手。请分析Reddit帖子内容，识别用户痛点和需求。\n\n请按以下格式返回JSON：\n{\n  \"pain_point_category\": \"文化冲突|经济负担|决策困难|期望管理|信息获取\",\n  \"user_group\": \"本地居民|新移民|游客\",\n  \"severity\": 1-5,\n  \"key_insights\": [\"洞察1\", \"洞察2\"],\n  \"sentiment\": \"positive|negative|neutral\",\n  \"actionable_suggestions\": [\"建议1\", \"建议2\"]\n}"
+            },
+            {
+              "role": "user", 
+              "content": "标题: {{ $json.title }}\n内容: {{ $json.content }}\n点赞数: {{ $json.score }}\n评论数: {{ $json.num_comments }}\n来源: r/{{ $json.subreddit }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "ai-analyzer",
+      "name": "AI分析器",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "reddit_posts",
+        "columns": "id, title, content, score, num_comments, created_utc, subreddit, url, author, collected_at, pain_point_category, user_group, severity, sentiment",
+        "additionalFields": {
+          "mode": "upsert",
+          "upsertFields": ["id"]
+        }
+      },
+      "id": "database-insert",
+      "name": "数据库存储",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aloha",
+          "name": "Aloha PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-priority",
+              "leftValue": "={{ $json.severity }}",
+              "rightValue": 4,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "priority-filter",
+      "name": "优先级过滤",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "page",
+        "operation": "append",
+        "pageId": "notion-page-id-here",
+        "blockUi": {
+          "blockValues": [
+            {
+              "type": "paragraph",
+              "richText": [
+                {
+                  "textType": "text",
+                  "text": "🚨 高优先级发现 ({{ new Date().toLocaleString('zh-CN', {timeZone: 'Pacific/Honolulu'}) }})\n\n📊 **数据概览**:\n- 标题: {{ $json.title }}\n- 痛点类别: {{ $json.pain_point_category }}\n- 用户群体: {{ $json.user_group }}\n- 严重程度: {{ $json.severity }}/5\n- 参与度: {{ $json.score }}点赞, {{ $json.num_comments }}评论\n- 来源: r/{{ $json.subreddit }}\n\n💡 **关键洞察**:\n{{ $json.key_insights.join('\\n- ') }}\n\n🎯 **行动建议**:\n{{ $json.actionable_suggestions.join('\\n- ') }}\n\n🔗 [查看原帖]({{ $json.url }})\n\n---"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "id": "notion-update",
+      "name": "Notion报告更新",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [1560, 200],
+      "credentials": {
+        "notionApi": {
+          "id": "notion-aloha",
+          "name": "Aloha Notion"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "telegram-chat-id-here",
+        "text": "🏝️ **Aloha数据监控警报**\n\n发现高优先级用户需求！\n\n📊 **详情**:\n• 痛点: {{ $json.pain_point_category }}\n• 群体: {{ $json.user_group }}\n• 严重程度: {{ $json.severity }}/5\n• 参与度: {{ $json.score }}👍 {{ $json.num_comments }}💬\n\n💭 **内容**: {{ $json.title }}\n\n🔗 [查看详情]({{ $json.url }})\n\n⏰ {{ new Date().toLocaleString('zh-CN', {timeZone: 'Pacific/Honolulu'}) }} HST",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-alert",
+      "name": "Telegram警报",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-aloha",
+          "name": "Aloha Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "定时触发器": {
+      "main": [
+        [
+          {
+            "node": "Reddit r/Hawaii",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit r/Honolulu", 
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit r/VisitingHawaii",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit r/Hawaii": {
+      "main": [
+        [
+          {
+            "node": "数据处理器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit r/Honolulu": {
+      "main": [
+        [
+          {
+            "node": "数据处理器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit r/VisitingHawaii": {
+      "main": [
+        [
+          {
+            "node": "数据处理器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据处理器": {
+      "main": [
+        [
+          {
+            "node": "AI分析器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI分析器": {
+      "main": [
+        [
+          {
+            "node": "数据库存储",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据库存储": {
+      "main": [
+        [
+          {
+            "node": "优先级过滤",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "优先级过滤": {
+      "main": [
+        [
+          {
+            "node": "Notion报告更新",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram警报",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-04T12:00:00.000Z",
+      "updatedAt": "2025-01-04T12:00:00.000Z", 
+      "id": "aloha-automation",
+      "name": "Aloha自动化"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-04T12:00:00.000Z",
+  "versionId": "1"
+}

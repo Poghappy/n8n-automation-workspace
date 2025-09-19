@@ -1,0 +1,52 @@
+#! huoniao-portal-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: huoniao-portal
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: huoniao-portal
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: n8n-
+            com.docker.compose.service: huoniao-portal
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: n8n-
+                com.docker.compose.service: huoniao-portal
+                com.docker.compose.network.n8n-network: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: huoniao-portal
+                  image: php:8.1-apache
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: APACHE_DOCUMENT_ROOT
+                      value: "/var/www/html"
+                    - name: PHP_MAX_EXECUTION_TIME
+                      value: "300"
+                    - name: PHP_MEMORY_LIMIT
+                      value: "512M"
+                  ports:
+                    - name: huoniao-port-80
+                      containerPort: 80
+                  volumeMounts:
+                    - name: var-www-html
+                      mountPath: /var/www/html
+                    - name: usr-local-etc-php-php-ini
+                      mountPath: /usr/local/etc/php/php.ini
+            volumes:
+                - name: var-www-html
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/portal
+                - name: usr-local-etc-php-php-ini
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/portal/config/php.ini

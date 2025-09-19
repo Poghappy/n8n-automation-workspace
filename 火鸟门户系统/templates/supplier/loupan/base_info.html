@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=EDGE">
+		<title>基本信息</title>
+		<meta name="keywords" content="{#$cfg_keywords#}">
+		<meta name="description" content="{#$cfg_description#}">
+		<link rel="stylesheet" type="text/css" media="all" href="{#$cfg_staticPath#}css/core/base.css?v={#$cfg_staticVersion#}" />
+		<link rel="stylesheet" href="{#$cfg_staticPath#}/css/admin/datetimepicker.css?v={#$cfg_staticVersion#}">
+		<link rel="stylesheet" href="{#$cfg_staticPath#}/css/admin/bootstrap.css?v={#$cfg_staticVersion#}">
+		<link rel="stylesheet" href="{#$templets_skin#}css/pub_loupan.css?v={#$cfg_staticVersion#}">
+		<link rel="stylesheet" href="{#$templets_skin#}css/base_info.css?v={#$cfg_staticVersion#}">
+		<script type="text/javascript" src="{#$cfg_staticPath#}js/core/jquery-1.8.3.min.js?v={#$cfg_staticVersion#}"></script>
+		<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/vue.min.js?v={#$cfg_staticVersion#}"></script>
+		<script type="text/javascript">
+		    var masterDomain = '{#$cfg_basehost#}', staticPath = '{#$cfg_staticPath#}';
+		    var hideFileUrl = '{#$cfg_hideUrl#}';
+		    var cookiePre = '{#$cfg_cookiePre#}', cfg_clihost = '{#$cfg_clihost#}';
+			var templets = '{#$templets_skin#}';
+			var protypelist = {#if $protypelist#} {#$protypelist#} {#else#} '' {#/if #}; //物业类型
+			var salestatenames = ['新盘待售','在售','尾盘','售罄']; //销售状态
+			var existingnames = ['现房','期房']; //销售状态
+			var salestate = '{#$detail_salestate#}',   //销售状态
+				existing = '{#$detail_existing#}',   //楼盘状态
+				protype = {#if is_array($detail_protype)#} {#json_encode($detail_protype,true)#} {#else#} '{#$detail_protype#}' {#/if#};   //物业类型
+			var thumbSize = '{#$thumbSize#}', thumbType = "{#$thumbType#}",  //缩略图配置
+				addrid = '{#$addrid#}', addrListArr = '{#$addrListArr#}', mapCity = "{#$mapCity#}", subwayCity = 0;
+			var subwayarr = {#if $detail_subwayarr#}{#$detail_subwayarr#} {#else#}''{#/if#};
+
+			var loupanid = '{#$loupanid#}';
+			var modelType = 'house';
+		</script>
+	</head>
+	<body class="w1200">
+		<div id="page">
+			<!-- 头部 -->
+			{#include file="top.html"#}
+			<div class="conbox">
+				<!-- 左侧导航 -->
+				<div class="left_box">
+					<ul v-cloak>
+						<li v-for=" (item,i) in navList" :class="{'curr':i==currid || i === hoverid}"  @mouseover="hoverid = i" @mouseleave="hoverid = ''">
+							<a :href="item.link">
+								<s v-if="i!=currid && i !== hoverid"><img :src="'{#$templets_skin#}images/'+(i+1)+'.png'" ></s>
+								<s v-else><img :src="'{#$templets_skin#}images/'+(i+1)+'_on.png'" ></s>
+								<span>{{item.txt}}</span>
+							</a>
+						</li>
+					</ul>
+				</div>
+
+				<!-- 右侧 -->
+				<div class="right_box">
+					<div class="rConBox">
+						<h3>基本资料</h3>
+						<div class="formbox">
+							<form action="" id="form">
+								<div class="inpbox required" >
+									<label><em>* </em>楼盘名称</label>
+									<div class="inp_div">
+										<div class="inp"><input type="text" name="title" value="{#$detail_title#}" placeholder="请输入楼盘名称" data-regex=".{3,60}"></div>
+									</div>
+								</div>
+								<div class="inpbox" >
+									<label>楼盘别名</label>
+									<div class="inp_div">
+										<div class="inp"><input type="text" name="titlealias" value="{#$detail_titlealias#}" placeholder="请输入楼盘别名" data-regex=".{3,60}"></div>
+									</div>
+								</div>
+
+								<div class="inpbox required">
+									<label><em>* </em>区域板块</label>
+									<div class="inp_div sel_inp" >
+										<div class="inp">
+											<input type="hidden" name="addrid" id="addrid" value="{#$detail_addrid#}" placeholder="请选择区域板块">
+											<input type="hidden" name="cityid" id="cityid" value="{#$detail_cityid#}">
+											<div class="addrBtn" data-field="addrid" data-ids="{#getPublicParentInfo tab='site_area' id=$detail_addrid split=' '#}" data-id={#$detail_addrid#}>{#if $detail_addrid != '' && $detail_addrid != "''"#}{#getPublicParentInfo tab='site_area' id=$detail_addrid type='typename' split='/'#}{#else#}请选择{#/if#}</div><s></s>
+											</div>
+									</div>
+								</div>
+
+								<div class="inpbox required">
+									<label><em>* </em>楼盘地址</label>
+									<div class="inp_div addr_inp">
+										<div class="inp"><input type="text" name="addr" id="addr" value="{#$detail_addrs#}" placeholder="请选择地址" data-regex=".{2,100}"><s></s></div>
+										<a href="javascript:;" class="addr_btn" @click="mapTo"></a>
+									</div>
+								</div>
+
+								<div class="inpbox bottom_low">
+									<label><em>* </em>附近公交/地址</label>
+									<div class="inp_div route_inp">
+										<ul v-cloak>
+											<li v-for="item in routeArr" :data-id="item.id"><span>{{item.txt}}</span><s class="del_route" @click="delRoute(item.id)"></s></li>
+											<input type="hidden" name="subway" id="subway" value="{#$detail_subway#}" />
+											<a href="javascript:;" class="chose_route" @click="choseRoute">选择</a>
+										</ul>
+									</div>
+								</div>
+
+								<div class="inpbox required">
+									<label><em>* </em>楼盘图片</label>
+									<div class="inp_div img_upload listImgBox">
+										<input type="hidden" name="litpic" value="{#$detail_litpic#}" class="imglist-hidden" placeholder="请上传楼盘图片"/>
+										<div class="imgbox">
+											<div class="upload_btn filePicker uploadinp {#if $detail_litpic != ''#}hide{#/if#}" id="filePicker1" data-type="thumb"  data-count="1" data-size="{#$thumbSize#}" data-imglist="">
+												<s></s>
+												<p>点击上传图片</p>
+											</div>
+											<div class="imgShow">
+												<ul id="listSection1" class="listSection thumblist">
+													{#if $detail_litpic#}
+													<li id="WU_FILE_has_0" class="pubitem"><img src="{#$detail_litpicptah#}" data-val="{#$detail_litpic#}" data-url="{#$detail_litpicptah#}">
+														<a class="reupload li-rm" href="javascript:;">重新上传</a>
+													</li>
+													{#/if#}
+												</ul>
+												<!-- <div class="reupload">重新上传</div> -->
+											</div>
+										</div>
+										<p class="tip">楼盘封面图片，推荐尺寸500像素*360像素</p>
+									</div>
+								</div>
+								<div class="inpbox onepicsInp">
+									<label>横幅图片</label>
+									<div class="inp_div img_upload listImgBox">
+										<input type="hidden" name="banner" value="{#$detail_banner#}" class="imglist-hidden" placeholder="请上传楼盘图片">
+										<div class="imgbox">
+
+											<div class="upload_btn filePicker uploadinp {#if $detail_banner != ''#}hide{#/if#} " id="filePicker2" data-type="pics"  data-count="1" data-size="{#$atlasSize#}" data-imglist="">
+												<s></s>
+												<p>点击上传图片</p>
+											</div>
+											<div class="imgShow">
+												<ul id="listSection2" class="listSection thumblist">
+													{#if $detail_banner!=''#}
+													<li id="WU_FILE_has1_0" class="pubitem"><img src="{#$detail_bannerptah#}" data-val="{#$detail_banner#}" data-url="{#$detail_bannerptah#}">
+														<a class="reupload li-rm" href="javascript:;">重新上传</a>
+													</li>
+													{#/if#}
+												</ul>
+											</div>
+										</div>
+										<p class="tip">楼盘PC端横幅主图，推荐尺寸1200像素*500像素</p>
+									</div>
+								</div>
+
+								<div class="inpbox required" >
+									<label><em>* </em>开发商</label>
+									<div class="inp_div">
+										<div class="inp"><input type="text" name="investor" value="{#$detail_investor#}" id="investor" placeholder="填写开发商"></div>
+									</div>
+								</div>
+
+								<div class="inpbox" >
+									<label>售楼电话</label>
+									<div class="inp_div">
+										<div class="inp"><input type="tel" name="tel" value="{#$detail_tel#}" id="tel" placeholder="填写售楼电话"></div>
+									</div>
+								</div>
+								<div class="inpbox ">
+									<label><em>* </em>预计开盘时间</label>
+									<div class="inp_div sel_inp">
+										<div class="inp "><input name="deliverdate" id="deliverdate" type="text" value="{#$detail_deliverdate|date_format:'%Y-%m-%d'#}"   placeholder="请选择开盘时间" ><s></s></div>
+									</div>
+								</div>
+								<div class="inpbox ">
+									<label><em>* </em>预计交房时间</label>
+									<div class="inp_div sel_inp">
+										<div class="inp "><input type="text"  name="opendate" value="{#$detail_opendate|date_format:'%Y-%m-%d'#}" id="opendate" placeholder="请选择交房时间" ><s></s></div>
+									</div>
+								</div>
+								<div class="inpbox required"  v-cloak>
+									<label><em>* </em>售价</label>
+									<div class="inp_div sale_inp">
+										<div class="inp "><input type="text" name="price" value="{#$detail_price#}"  placeholder="请输入售价"></div>
+										<span class="selecte_box">
+											<select name="ptype" id="ptype">
+												{#html_options options=$ptypeList selected=$ptype#}
+												<option value="1" selected="selected">元/㎡</option>
+												<option value="2">万元/套</option>
+											 </select>
+											 <s></s>
+										</span>
+										<span class="txt">起</span>
+										<p class="last_tip">如尚未定价可填0</p>
+									</div>
+								</div>
+
+								<div class="inpbox required " v-cloak>
+									<label><em>* </em>销售状态</label>
+									<div class="inp_div radiobox">
+										<ul >
+											<li :class="{'chose':i==salestate}" v-for="(item,i) in salestatenames" @click="salestate = i">
+												 <input type="radio"  name="salestate" :value="i" :checked="i==salestate"><s></s>{{item}}
+											</li>
+										</ul>
+									</div>
+								</div>
+								<div class="inpbox required ">
+									<label><em>* </em>楼盘状态</label>
+									<div class="inp_div radiobox"  v-cloak>
+										<ul >
+										 <li :class="{'chose':i==existing}" v-for="(item,i) in existingnames" @click="existing = i"><input type="radio" name="existing" :value="i" :checked="i==existing"><s></s>{{item}}</li>
+										</ul>
+									</div>
+								</div>
+								<div class="inpbox  ">
+									<label><em>* </em>物业类型</label>
+									<div class="inp_div checkbox"  v-cloak>
+										<ul >
+										 <li :class="{'check':protype.indexOf(item.id)>-1 }"  v-for="(item,i) in protypelist" @click="checkIn(item.id)"><input type="checkbox" name="protype[]" :value="item.id" :checked="protype.indexOf(item.id)>-1"><s></s>{{item.typename}}</li>
+										 </ul>
+									</div>
+								</div>
+								<a href="javascript:;" class="submit" @click="submit">确认提交</a>
+							</form>
+						</div>
+					</div>
+				</div>
+				<div class="loading" v-if="loading"></div>
+				<div class="foot">
+					<div class="foot-bottom">
+						<div class="bottom wrap">
+							版权所有 © {#$smarty.now|date_format:'%Y'#} {#$cfg_shortname#}. All rights reserved.<br />
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div>{#$cfg_statisticscode#}</div>
+	</body>
+	<script type='text/javascript' src='{#$cfg_basehost#}/include/json.php?action=lang'></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/publicAddr.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/ui/jquery.dragsort-0.5.1.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/ui/bootstrap-datetimepicker.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$templets_skin#}js/publicUpload_v2.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/webuploader/webuploader.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/axios.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type='text/javascript' src='{#$cfg_staticPath#}/js/ui/jquery.dialog-4.2.0.js?v={#$cfg_staticVersion#}'></script>
+	<script type="text/javascript" src="{#$templets_skin#}js/public.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$templets_skin#}js/base_info.js?v={#$cfg_staticVersion#}"></script>
+</html>

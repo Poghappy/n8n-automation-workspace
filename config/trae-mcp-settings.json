@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "n8n-integration": {
+      "command": "npx",
+      "args": ["-y", "@leonardsellem/n8n-mcp-server"],
+      "env": {
+        "N8N_API_URL": "http://localhost:5678/api/v1",
+        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNTRkMjIzNi02Zjc5LTQxNjctOTI1Ny00MzhiYjMxNzQyNzIiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzU4MTMyNDMwLCJleHAiOjE3NjA3MTY4MDB9.P3uxFIoKUJkpKNji86cgFMuChXjytalFncKc0Xk2KxA"
+      },
+      "cwd": "/Users/zhiledeng/Documents/augment-projects/N8N-自动化",
+      "disabled": false
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/zhiledeng/Documents/augment-projects/N8N-自动化"],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "disabled": false
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "/Users/zhiledeng/Documents/augment-projects/N8N-自动化"],
+      "cwd": "/Users/zhiledeng/Documents/augment-projects/N8N-自动化",
+      "disabled": false
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file": "/Users/zhiledeng/.config/trae/mcp.log",
+    "maxSize": "10MB",
+    "maxFiles": 5
+  },
+  "performance": {
+    "maxConcurrentServers": 10,
+    "connectionTimeout": 30000,
+    "keepAliveInterval": 60000,
+    "maxRetries": 3
+  }
+}

@@ -1,0 +1,793 @@
+{
+  "name": "火鸟门户自动化新闻工作流参数配置",
+  "description": "完整的工作流参数管理配置，支持动态更新和热重载",
+  "version": "1.0.0",
+  "lastUpdated": "2025-08-23T14:00:00.000Z",
+  
+  "environment": {
+    "description": "环境配置和变量管理",
+    "current": "production",
+    "profiles": {
+      "development": {
+        "debug": true,
+        "logLevel": "debug",
+        "enableMockData": true,
+        "apiTimeout": 60000,
+        "retryAttempts": 1,
+        "enableCaching": false
+      },
+      "staging": {
+        "debug": false,
+        "logLevel": "info",
+        "enableMockData": false,
+        "apiTimeout": 30000,
+        "retryAttempts": 2,
+        "enableCaching": true
+      },
+      "production": {
+        "debug": false,
+        "logLevel": "warn",
+        "enableMockData": false,
+        "apiTimeout": 30000,
+        "retryAttempts": 3,
+        "enableCaching": true
+      }
+    }
+  },
+
+  "credentials": {
+    "description": "凭据配置和安全管理",
+    "encryptionEnabled": true,
+    "rotationPolicy": {
+      "enabled": true,
+      "warningDays": 7,
+      "maxAge": 90
+    },
+    "validation": {
+      "enabled": true,
+      "checkInterval": 3600000,
+      "failureThreshold": 3
+    },
+    "storage": {
+      "type": "n8n_encrypted",
+      "backupEnabled": true,
+      "auditEnabled": true
+    }
+  },
+
+  "workflow": {
+    "description": "工作流核心参数配置 - 性能优化版",
+    
+    "execution": {
+      "mode": "trigger",
+      "timezone": "Asia/Shanghai",
+      "maxConcurrentExecutions": 3,
+      "executionTimeout": 300000,
+      "saveExecutionProgress": true,
+      "saveDataOnError": true,
+      "saveDataOnSuccess": false,
+      "saveManualExecutions": false,
+      "enablePerformanceOptimization": true,
+      "enableResourceMonitoring": true,
+      "enableAdaptiveTimeout": true
+    },
+
+    "scheduling": {
+      "enabled": true,
+      "cronExpression": "0 */30 * * * *",
+      "description": "每30分钟执行一次新闻采集",
+      "maxMissedRuns": 3,
+      "catchUpMissedRuns": false,
+      "timezone": "Asia/Shanghai"
+    },
+
+    "dataFlow": {
+      "batchSize": 10,
+      "maxItemsPerExecution": 50,
+      "enableDataValidation": true,
+      "enableDataSanitization": true,
+      "preserveDataTypes": true,
+      "enableDataCompression": false
+    },
+
+    "errorHandling": {
+      "continueOnFail": false,
+      "retryOnFail": true,
+      "maxRetries": 3,
+      "retryInterval": 5000,
+      "exponentialBackoff": true,
+      "backoffMultiplier": 2,
+      "maxRetryInterval": 30000,
+      "skipOnError": false,
+      "logErrors": true,
+      "alertOnError": true
+    },
+
+    "performance": {
+      "enableProfiling": true,
+      "memoryLimit": "1GB",
+      "cpuLimit": "2000m",
+      "enableGarbageCollection": true,
+      "gcInterval": 180000,
+      "enableMetrics": true,
+      "metricsInterval": 30000,
+      "enableConcurrencyOptimization": true,
+      "maxConcurrentTasks": 5,
+      "maxConcurrentApiCalls": 3,
+      "enableAdaptiveRetry": true,
+      "enableSmartCaching": true,
+      "cacheSize": 1000,
+      "cacheTTL": 3600000,
+      "enableBatchProcessing": true,
+      "batchSize": 10,
+      "enableResourceThrottling": true,
+      "memoryThreshold": 0.8,
+      "cpuThreshold": 0.9
+    }
+  },
+
+  "nodes": {
+    "description": "各节点的详细参数配置",
+
+    "rssCollector": {
+      "nodeType": "n8n-nodes-base.rss",
+      "enabled": true,
+      "parameters": {
+        "timeout": 30000,
+        "maxItems": 10,
+        "enableCache": true,
+        "cacheTimeout": 1800000,
+        "userAgent": "n8n-huoniao-collector/1.0",
+        "followRedirects": true,
+        "maxRedirects": 5,
+        "validateSSL": true,
+        "encoding": "utf8"
+      },
+      "errorHandling": {
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxRetries": 3,
+        "retryInterval": 5000
+      }
+    },
+
+    "githubCollector": {
+      "nodeType": "n8n-nodes-base.github",
+      "enabled": true,
+      "parameters": {
+        "timeout": 30000,
+        "maxItems": 5,
+        "enableCache": true,
+        "cacheTimeout": 3600000,
+        "apiVersion": "2022-11-28",
+        "userAgent": "n8n-huoniao-collector/1.0"
+      },
+      "errorHandling": {
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxRetries": 3,
+        "retryInterval": 10000
+      }
+    },
+
+    "contentProcessor": {
+      "nodeType": "n8n-nodes-base.function",
+      "enabled": true,
+      "parameters": {
+        "timeout": 60000,
+        "enableAI": true,
+        "aiModel": "gpt-3.5-turbo",
+        "aiTemperature": 0.7,
+        "aiMaxTokens": 2000,
+        "enableCache": true,
+        "cacheTimeout": 7200000,
+        "strictMode": false,
+        "enableLogging": true,
+        "logLevel": "info"
+      },
+      "processing": {
+        "enableTitleOptimization": true,
+        "enableContentOptimization": true,
+        "enableKeywordGeneration": true,
+        "enableSummaryGeneration": true,
+        "enableQualityAssessment": true,
+        "enableDuplicateDetection": true,
+        "similarityThreshold": 0.8,
+        "minContentLength": 50,
+        "maxContentLength": 10000,
+        "minTitleLength": 5,
+        "maxTitleLength": 200,
+        "minQualityScore": 60
+      },
+      "errorHandling": {
+        "continueOnFail": false,
+        "retryOnFail": true,
+        "maxRetries": 2,
+        "retryInterval": 10000,
+        "fallbackToBasicProcessing": true
+      }
+    },
+
+    "notionStorage": {
+      "nodeType": "n8n-nodes-base.notion",
+      "enabled": true,
+      "parameters": {
+        "timeout": 30000,
+        "maxRetries": 3,
+        "retryInterval": 5000,
+        "enableBatching": false,
+        "batchSize": 5,
+        "enableValidation": true,
+        "enableSanitization": true
+      },
+      "fieldMapping": {
+        "title": "标题",
+        "content": "内容",
+        "summary": "摘要",
+        "source": "来源",
+        "author": "作者",
+        "sourceUrl": "原始URL",
+        "publishDate": "发布日期",
+        "categoryId": "分类ID",
+        "categoryName": "分类名称",
+        "keywords": "关键词",
+        "imageUrl": "缩略图URL",
+        "qualityScore": "质量分数",
+        "processingStatus": "处理状态",
+        "auditStatus": "审核状态"
+      },
+      "validation": {
+        "maxTitleLength": 60,
+        "maxSummaryLength": 255,
+        "maxAuthorLength": 20,
+        "maxSourceLength": 30,
+        "maxKeywordsLength": 50,
+        "maxSourceUrlLength": 200
+      },
+      "errorHandling": {
+        "continueOnFail": false,
+        "retryOnFail": true,
+        "maxRetries": 3,
+        "retryInterval": 5000,
+        "exponentialBackoff": true
+      }
+    },
+
+    "aiManagement": {
+      "nodeType": "n8n-nodes-base.function",
+      "enabled": true,
+      "parameters": {
+        "timeout": 45000,
+        "aiModel": "gpt-4",
+        "aiTemperature": 0.3,
+        "aiMaxTokens": 1500,
+        "enableCache": true,
+        "cacheTimeout": 3600000,
+        "enableLogging": true,
+        "logLevel": "info"
+      },
+      "management": {
+        "enableContentReview": true,
+        "enableCategoryOptimization": true,
+        "enablePublishingStrategy": true,
+        "enableConfigOptimization": true,
+        "enablePerformanceAnalysis": true,
+        "reviewThreshold": 70,
+        "optimizationInterval": 86400000,
+        "strategyUpdateInterval": 3600000
+      },
+      "decisions": {
+        "publishThreshold": 75,
+        "rejectThreshold": 40,
+        "reviseThreshold": 60,
+        "holdThreshold": 50,
+        "autoPublishEnabled": true,
+        "manualReviewRequired": false
+      },
+      "errorHandling": {
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxRetries": 2,
+        "retryInterval": 15000,
+        "fallbackToManualReview": true
+      }
+    },
+
+    "firebirdPublisher": {
+      "nodeType": "n8n-nodes-base.httpRequest",
+      "enabled": true,
+      "parameters": {
+        "url": "https://hawaiihub.net/include/ajax.php",
+        "method": "POST",
+        "timeout": 30000,
+        "followRedirects": true,
+        "maxRedirects": 3,
+        "enableCompression": true,
+        "validateSSL": true,
+        "keepAlive": true
+      },
+      "headers": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "n8n-automation/1.0",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive"
+      },
+      "fieldMapping": {
+        "service": "article",
+        "action": "put",
+        "title": "title",
+        "typeid": "categoryId",
+        "body": "content",
+        "writer": "author",
+        "source": "source",
+        "sourceurl": "sourceUrl",
+        "keywords": "keywords",
+        "description": "summary",
+        "litpic": "imageUrl"
+      },
+      "validation": {
+        "maxTitleLength": 60,
+        "maxBodyLength": 50000,
+        "maxWriterLength": 20,
+        "maxSourceLength": 30,
+        "maxKeywordsLength": 50,
+        "maxDescriptionLength": 255,
+        "maxSourceUrlLength": 200
+      },
+      "successConditions": {
+        "statusCode": 200,
+        "responseState": 100,
+        "responseFormat": "json"
+      },
+      "errorHandling": {
+        "continueOnFail": false,
+        "retryOnFail": true,
+        "maxRetries": 3,
+        "retryInterval": 5000,
+        "retryOnStatusCodes": [500, 502, 503, 504],
+        "exponentialBackoff": true
+      }
+    },
+
+    "logger": {
+      "nodeType": "n8n-nodes-base.function",
+      "enabled": true,
+      "parameters": {
+        "timeout": 10000,
+        "enableStructuredLogging": true,
+        "enableMetrics": true,
+        "enableAuditLog": true,
+        "logLevel": "info",
+        "maxLogSize": "10MB",
+        "logRotation": true,
+        "retentionDays": 30
+      },
+      "categories": {
+        "workflow": {
+          "enabled": true,
+          "level": "info",
+          "includeMetadata": true,
+          "includeTimings": true
+        },
+        "performance": {
+          "enabled": true,
+          "level": "info",
+          "includeMemoryUsage": true,
+          "includeCpuUsage": true
+        },
+        "error": {
+          "enabled": true,
+          "level": "error",
+          "includeStackTrace": true,
+          "includeContext": true
+        },
+        "audit": {
+          "enabled": true,
+          "level": "info",
+          "includeUserActions": true,
+          "includeDataChanges": true
+        },
+        "security": {
+          "enabled": true,
+          "level": "warn",
+          "includeAuthEvents": true,
+          "includeAccessAttempts": true
+        }
+      },
+      "destinations": {
+        "console": {
+          "enabled": true,
+          "format": "json",
+          "colorize": false
+        },
+        "file": {
+          "enabled": true,
+          "path": "./logs/workflow.log",
+          "format": "json",
+          "maxSize": "10MB",
+          "maxFiles": 5
+        },
+        "webhook": {
+          "enabled": false,
+          "url": "${WEBHOOK_LOG_URL}",
+          "batchSize": 100,
+          "flushInterval": 5000
+        }
+      },
+      "errorHandling": {
+        "continueOnFail": true,
+        "retryOnFail": false,
+        "suppressErrors": true
+      }
+    }
+  },
+
+  "integrations": {
+    "description": "外部服务集成配置",
+
+    "openai": {
+      "enabled": true,
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-3.5-turbo",
+      "temperature": 0.7,
+      "maxTokens": 2000,
+      "timeout": 60000,
+      "retryAttempts": 3,
+      "retryDelay": 1000,
+      "rateLimiting": {
+        "enabled": true,
+        "requestsPerMinute": 60,
+        "tokensPerMinute": 90000
+      },
+      "errorHandling": {
+        "retryOnRateLimit": true,
+        "retryOnServerError": true,
+        "fallbackModel": "gpt-3.5-turbo"
+      }
+    },
+
+    "notion": {
+      "enabled": true,
+      "baseUrl": "https://api.notion.com/v1",
+      "version": "2022-06-28",
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "retryDelay": 5000,
+      "rateLimiting": {
+        "enabled": true,
+        "requestsPerSecond": 3
+      },
+      "errorHandling": {
+        "retryOnRateLimit": true,
+        "retryOnServerError": true,
+        "exponentialBackoff": true
+      }
+    },
+
+    "firebird": {
+      "enabled": true,
+      "baseUrl": "https://hawaiihub.net",
+      "endpoint": "/include/ajax.php",
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "retryDelay": 5000,
+      "sessionManagement": {
+        "enabled": true,
+        "refreshInterval": 3600000,
+        "validateBeforeUse": true
+      },
+      "errorHandling": {
+        "retryOnAuthError": true,
+        "retryOnServerError": true,
+        "autoRefreshSession": true
+      }
+    },
+
+    "github": {
+      "enabled": true,
+      "baseUrl": "https://api.github.com",
+      "version": "2022-11-28",
+      "timeout": 30000,
+      "retryAttempts": 3,
+      "retryDelay": 10000,
+      "rateLimiting": {
+        "enabled": true,
+        "requestsPerHour": 5000
+      },
+      "errorHandling": {
+        "retryOnRateLimit": true,
+        "retryOnServerError": true,
+        "respectRateLimitHeaders": true
+      }
+    }
+  },
+
+  "monitoring": {
+    "description": "监控和指标配置",
+
+    "metrics": {
+      "enabled": true,
+      "collectionInterval": 60000,
+      "retentionPeriod": "7d",
+      "enableSystemMetrics": true,
+      "enableWorkflowMetrics": true,
+      "enableContentMetrics": true,
+      "enableApiMetrics": true
+    },
+
+    "healthChecks": {
+      "enabled": true,
+      "interval": 300000,
+      "timeout": 30000,
+      "endpoints": [
+        {
+          "name": "OpenAI API",
+          "url": "https://api.openai.com/v1/models",
+          "method": "GET",
+          "expectedStatus": 200,
+          "timeout": 10000
+        },
+        {
+          "name": "Notion API",
+          "url": "https://api.notion.com/v1/users/me",
+          "method": "GET",
+          "expectedStatus": 200,
+          "timeout": 10000
+        },
+        {
+          "name": "火鸟门户API",
+          "url": "https://hawaiihub.net/include/ajax.php",
+          "method": "POST",
+          "expectedStatus": [200, 400],
+          "timeout": 10000
+        },
+        {
+          "name": "GitHub API",
+          "url": "https://api.github.com",
+          "method": "GET",
+          "expectedStatus": 200,
+          "timeout": 10000
+        }
+      ]
+    },
+
+    "alerting": {
+      "enabled": true,
+      "channels": ["console", "webhook"],
+      "rules": {
+        "critical": {
+          "workflowFailureRate": { "threshold": 20, "timeWindow": "1h" },
+          "authenticationError": { "immediate": true },
+          "serviceUnavailable": { "threshold": 300000 },
+          "memoryUsage": { "threshold": 95 }
+        },
+        "warning": {
+          "executionTime": { "threshold": 300000, "timeWindow": "1h" },
+          "errorRate": { "threshold": 5, "timeWindow": "1h" },
+          "qualityScore": { "threshold": 70, "timeWindow": "1h" },
+          "apiResponseTime": { "threshold": 10000 }
+        }
+      },
+      "cooldown": 300000,
+      "aggregation": {
+        "enabled": true,
+        "timeWindow": 300000,
+        "maxAlertsPerWindow": 10
+      }
+    },
+
+    "reporting": {
+      "enabled": true,
+      "executionReports": {
+        "enabled": true,
+        "generateOnCompletion": true,
+        "retentionPeriod": "30d"
+      },
+      "periodicReports": {
+        "daily": {
+          "enabled": true,
+          "time": "06:00",
+          "timezone": "Asia/Shanghai"
+        },
+        "weekly": {
+          "enabled": true,
+          "day": "monday",
+          "time": "09:00",
+          "timezone": "Asia/Shanghai"
+        }
+      }
+    }
+  },
+
+  "security": {
+    "description": "安全配置和策略",
+
+    "authentication": {
+      "enabled": true,
+      "tokenValidation": true,
+      "sessionManagement": true,
+      "credentialRotation": {
+        "enabled": true,
+        "interval": 2592000000,
+        "warningPeriod": 604800000
+      }
+    },
+
+    "encryption": {
+      "enabled": true,
+      "algorithm": "aes-256-gcm",
+      "keyRotation": {
+        "enabled": true,
+        "interval": 7776000000
+      }
+    },
+
+    "dataProtection": {
+      "enableDataMasking": true,
+      "enableDataSanitization": true,
+      "enableAuditLogging": true,
+      "retentionPolicy": {
+        "logs": "90d",
+        "backups": "30d",
+        "executionData": "7d"
+      }
+    },
+
+    "accessControl": {
+      "enableIpWhitelist": false,
+      "enableRateLimiting": true,
+      "enableRequestValidation": true,
+      "maxRequestSize": "10MB"
+    }
+  },
+
+  "backup": {
+    "description": "备份和恢复配置",
+
+    "configuration": {
+      "enabled": true,
+      "interval": 86400000,
+      "retentionCount": 10,
+      "compressionEnabled": true,
+      "encryptionEnabled": true
+    },
+
+    "executionData": {
+      "enabled": false,
+      "interval": 3600000,
+      "retentionPeriod": "7d",
+      "compressionEnabled": true
+    },
+
+    "logs": {
+      "enabled": true,
+      "interval": 86400000,
+      "retentionPeriod": "30d",
+      "compressionEnabled": true
+    },
+
+    "storage": {
+      "type": "local",
+      "path": "./backups",
+      "enableRemoteBackup": false,
+      "remoteConfig": {
+        "type": "s3",
+        "bucket": "",
+        "region": "",
+        "accessKeyId": "",
+        "secretAccessKey": ""
+      }
+    }
+  },
+
+  "optimization": {
+    "description": "性能优化配置",
+
+    "caching": {
+      "enabled": true,
+      "defaultTtl": 3600000,
+      "maxSize": "100MB",
+      "enableCompression": true,
+      "strategies": {
+        "rssContent": {
+          "ttl": 1800000,
+          "maxSize": "10MB"
+        },
+        "aiResponses": {
+          "ttl": 7200000,
+          "maxSize": "50MB"
+        },
+        "apiResponses": {
+          "ttl": 300000,
+          "maxSize": "20MB"
+        }
+      }
+    },
+
+    "concurrency": {
+      "maxConcurrentNodes": 5,
+      "maxConcurrentRequests": 10,
+      "enableQueueing": true,
+      "queueMaxSize": 100,
+      "queueTimeout": 300000
+    },
+
+    "resourceLimits": {
+      "memory": {
+        "warning": "400MB",
+        "critical": "500MB"
+      },
+      "cpu": {
+        "warning": 80,
+        "critical": 95
+      },
+      "disk": {
+        "warning": "1GB",
+        "critical": "500MB"
+      }
+    },
+
+    "garbageCollection": {
+      "enabled": true,
+      "interval": 300000,
+      "aggressiveMode": false,
+      "memoryThreshold": "300MB"
+    }
+  },
+
+  "development": {
+    "description": "开发和调试配置",
+
+    "debugging": {
+      "enabled": false,
+      "logLevel": "debug",
+      "enableVerboseLogging": false,
+      "enableStackTraces": true,
+      "enableProfiling": false
+    },
+
+    "testing": {
+      "enableMockData": false,
+      "mockDataPath": "./test-data",
+      "enableTestMode": false,
+      "skipExternalCalls": false
+    },
+
+    "validation": {
+      "enableStrictValidation": true,
+      "enableSchemaValidation": true,
+      "enableTypeChecking": true,
+      "enableRangeChecking": true
+    }
+  },
+
+  "maintenance": {
+    "description": "维护和清理配置",
+
+    "cleanup": {
+      "enabled": true,
+      "interval": 86400000,
+      "cleanupLogs": true,
+      "cleanupCache": true,
+      "cleanupTempFiles": true,
+      "cleanupOldBackups": true
+    },
+
+    "healthMaintenance": {
+      "enabled": true,
+      "interval": 3600000,
+      "checkDiskSpace": true,
+      "checkMemoryUsage": true,
+      "checkServiceHealth": true,
+      "autoRestart": false
+    },
+
+    "updates": {
+      "enableAutoUpdate": false,
+      "checkInterval": 86400000,
+      "enableNotifications": true,
+      "backupBeforeUpdate": true
+    }
+  }
+}

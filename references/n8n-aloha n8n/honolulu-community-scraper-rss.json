@@ -1,0 +1,184 @@
+{
+  "name": "檀香山社区RSS爬虫 - 无需API",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "id": "schedule-trigger",
+      "name": "每2小时执行"
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/Hawaii/.rss"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [400, 200],
+      "id": "rss-hawaii",
+      "name": "Reddit Hawaii RSS"
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/Honolulu/.rss"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [400, 300],
+      "id": "rss-honolulu",
+      "name": "Reddit Honolulu RSS"
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/r/HawaiiVisitors/.rss"
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [400, 400],
+      "id": "rss-visitors",
+      "name": "Reddit Hawaii Visitors RSS"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [600, 300],
+      "id": "merge-rss",
+      "name": "合并RSS数据"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "痛点|需求|问题|建议|推荐|寻找|looking for|need|problem|issue|recommend",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [800, 300],
+      "id": "filter-keywords",
+      "name": "关键词过滤"
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "message": "你是一个专门分析夏威夷檀香山社区用户需求和痛点的AI助手。请分析以下社区帖子，提取用户的具体需求、痛点和建议。用中文回答，格式为JSON：{\"需求类型\": \"\", \"具体需求\": \"\", \"痛点\": \"\", \"情感倾向\": \"\", \"紧急程度\": \"\"}"
+            },
+            {
+              "role": "user", 
+              "message": "标题: {{ $json.title }}\n内容: {{ $json.contentSnippet || $json.content }}\n链接: {{ $json.link }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [1000, 300],
+      "id": "ai-analysis",
+      "name": "AI需求分析"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "your-google-sheet-id",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "时间": "={{ $now }}",
+            "来源": "={{ $json.link }}",
+            "标题": "={{ $json.title }}",
+            "内容": "={{ $json.contentSnippet }}",
+            "需求分析": "={{ $json.choices[0].message.content }}",
+            "作者": "={{ $json.creator || '未知' }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [1200, 300],
+      "id": "save-to-sheets",
+      "name": "保存到Google Sheets"
+    }
+  ],
+  "connections": {
+    "每2小时执行": {
+      "main": [
+        [
+          {"node": "Reddit Hawaii RSS", "type": "main", "index": 0},
+          {"node": "Reddit Honolulu RSS", "type": "main", "index": 0},
+          {"node": "Reddit Hawaii Visitors RSS", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Reddit Hawaii RSS": {
+      "main": [
+        [{"node": "合并RSS数据", "type": "main", "index": 0}]
+      ]
+    },
+    "Reddit Honolulu RSS": {
+      "main": [
+        [{"node": "合并RSS数据", "type": "main", "index": 1}]
+      ]
+    },
+    "Reddit Hawaii Visitors RSS": {
+      "main": [
+        [{"node": "合并RSS数据", "type": "main", "index": 2}]
+      ]
+    },
+    "合并RSS数据": {
+      "main": [
+        [{"node": "关键词过滤", "type": "main", "index": 0}]
+      ]
+    },
+    "关键词过滤": {
+      "main": [
+        [{"node": "AI需求分析", "type": "main", "index": 0}]
+      ]
+    },
+    "AI需求分析": {
+      "main": [
+        [{"node": "保存到Google Sheets", "type": "main", "index": 0}]
+      ]
+    }
+  }
+}

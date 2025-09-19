@@ -1,0 +1,278 @@
+{
+  "name": "火鸟门户新闻采集工作流 - 增强版",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "新闻数据接收",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "huoniao-news-webhook"
+    },
+    {
+      "parameters": {
+        "functionCode": "// 火鸟门户内容处理核心模块集成\nconst { HuoNiaoContentProcessor } = require('./火鸟门户_内容处理核心模块.js');\n\n// 初始化内容处理器\nconst processor = new HuoNiaoContentProcessor({\n  aiApiKey: process.env.OPENAI_API_KEY,\n  enableCache: true,\n  enableLogging: true,\n  similarityThreshold: 0.8,\n  minContentLength: 100,\n  maxContentLength: 5000,\n  minTitleLength: 5,\n  maxTitleLength: 60\n});\n\n// 获取输入数据\nconst inputData = $input.first().json;\n\n// 数据预处理\nconst preprocessedData = {\n  title: inputData.title || '',\n  content: inputData.content || inputData.description || '',\n  category: inputData.category || '',\n  author: inputData.author || 'AI采集',\n  source: inputData.source || 'API采集',\n  source_url: inputData.url || inputData.source_url || '',\n  image_url: inputData.urlToImage || inputData.image_url || '',\n  keywords: inputData.keywords || '',\n  summary: inputData.summary || inputData.description || '',\n  publishedAt: inputData.publishedAt || new Date().toISOString(),\n  images: inputData.images || (inputData.urlToImage ? [inputData.urlToImage] : [])\n};\n\ntry {\n  // 处理内容\n  const result = await processor.processContent(preprocessedData, {\n    enableAI: true,\n    optimizeTitle: true,\n    optimizeContent: true,\n    generateKeywords: true,\n    generateSummary: true,\n    strictMode: false\n  });\n\n  if (!result.success) {\n    if (result.isDuplicate) {\n      return {\n        json: {\n          status: 'skipped',\n          reason: 'duplicate_content',\n          message: '检测到重复内容，跳过处理',\n          duplicateInfo: result.duplicateInfo\n        }\n      };\n    }\n    throw new Error(result.error || '内容处理失败');\n  }\n\n  // 返回处理后的数据\n  return {\n    json: {\n      status: 'processed',\n      data: result.data,\n      metadata: result.metadata,\n      originalData: inputData\n    }\n  };\n\n} catch (error) {\n  console.error('内容处理失败:', error);\n  return {\n    json: {\n      status: 'error',\n      error: error.message,\n      originalData: inputData\n    }\n  };\n}"
+      },
+      "id": "content-processor",
+      "name": "智能内容处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "operation": "equal",
+              "value2": "processed"
+            }
+          ]
+        }
+      },
+      "id": "content-filter",
+      "name": "内容状态检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://hawaiihub.net/include/ajax.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            },
+            {
+              "name": "Cookie",
+              "value": "PHPSESSID={{$env.HUONIAO_SESSION_ID}}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-automation/1.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "service",
+              "value": "article"
+            },
+            {
+              "name": "action",
+              "value": "put"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.data.title.substring(0, 60)}}"
+            },
+            {
+              "name": "typeid",
+              "value": "={{$json.data.categoryId || 1}}"
+            },
+            {
+              "name": "body",
+              "value": "={{$json.data.content}}"
+            },
+            {
+              "name": "writer",
+              "value": "={{$json.data.author || 'AI采集'}}"
+            },
+            {
+              "name": "source",
+              "value": "={{$json.data.source || 'AI采集'}}"
+            },
+            {
+              "name": "sourceurl",
+              "value": "={{$json.data.source_url || ''}}"
+            },
+            {
+              "name": "keywords",
+              "value": "={{$json.data.keywords || ''}}"
+            },
+            {
+              "name": "description",
+              "value": "={{$json.data.summary || ''}}"
+            },
+            {
+              "name": "litpic",
+              "value": "={{$json.data.image_url || ''}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+          },
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "id": "huoniao-publish",
+      "name": "火鸟门户发布",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-condition",
+              "leftValue": "={{$json.state}}",
+              "rightValue": 100,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "publish-check",
+      "name": "发布结果检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 成功处理日志记录\nconst result = $input.first().json;\n\nconst logEntry = {\n  timestamp: new Date().toISOString(),\n  status: 'success',\n  articleId: result.info,\n  message: '文章发布成功',\n  workflow: 'huoniao-news-collection'\n};\n\nconsole.log('文章发布成功:', JSON.stringify(logEntry));\n\nreturn {\n  json: {\n    ...logEntry,\n    data: result\n  }\n};"
+      },
+      "id": "success-logger",
+      "name": "成功日志记录",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 120]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 失败处理日志记录\nconst result = $input.first().json;\n\nconst logEntry = {\n  timestamp: new Date().toISOString(),\n  status: 'failed',\n  error: result.info || 'Unknown error',\n  workflow: 'huoniao-news-collection'\n};\n\nconsole.error('文章发布失败:', JSON.stringify(logEntry));\n\nreturn {\n  json: {\n    ...logEntry,\n    data: result\n  }\n};"
+      },
+      "id": "error-logger",
+      "name": "错误日志记录",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 280]
+    }
+  ],
+  "connections": {
+    "新闻数据接收": {
+      "main": [
+        [
+          {
+            "node": "智能内容处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "智能内容处理": {
+      "main": [
+        [
+          {
+            "node": "内容状态检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容状态检查": {
+      "main": [
+        [
+          {
+            "node": "火鸟门户发布",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "火鸟门户发布": {
+      "main": [
+        [
+          {
+            "node": "发布结果检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "发布结果检查": {
+      "main": [
+        [
+          {
+            "node": "成功日志记录",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误日志记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Asia/Shanghai",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "enhanced-v2.0.0",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "id": "huoniao",
+      "name": "火鸟门户"
+    },
+    {
+      "id": "news",
+      "name": "新闻采集"
+    },
+    {
+      "id": "ai",
+      "name": "AI处理"
+    }
+  ]
+}

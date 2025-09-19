@@ -1,0 +1,21 @@
+#! kibana-service.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: kibana-published
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: kibana
+spec:
+    selector:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: kibana
+    ports:
+        - name: kibana-5601
+          port: 5601
+          protocol: TCP
+          targetPort: kibana-5601
+
+# check if there is at least one published port

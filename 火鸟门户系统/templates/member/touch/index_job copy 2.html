@@ -1,0 +1,363 @@
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
+<title>{#$langData['siteConfig'][0][7]#} </title>
+<link rel="stylesheet" type="text/css" href="{#$cfg_staticPath#}css/core/touchBase.css?v={#$cfg_staticVersion#}">
+<link rel="stylesheet" type="text/css" href="{#$templets_skin#}css/mcenter/index_info.css?v={#$cfg_staticVersion#}">
+<link rel="stylesheet" type="text/css" href="{#$templets_skin#}css/mcenter/index_job.css?v={#$cfg_staticVersion#}">
+<script type="text/javascript" src="{#$cfg_staticPath#}js/core/touchScale.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/vue.js?v={#$cfg_staticVersion#}"></script>
+<script src="{#$cfg_staticPath#}js/core/zepto.min.js"></script>
+<script type="text/javascript">
+  var masterDomain = '{#$cfg_basehost#}', cookiePre = '{#$cfg_cookiePre#}';
+  var joinBusiUrl = '{#getUrlPath service='member' type='user' template='enter'#}';
+  var userinfo = {#json_encode($userinfo)#};
+
+  var mdList = {#json_encode($memberModule.userModuleList)#};
+</script>
+</head>
+
+<body>
+	
+
+
+	<div class="page_job">
+		<div class="gray_bg">
+			<div class="bgbox">
+				<div class="top_box">
+					{#if $userinfo#}
+					{#*个人升级到商家*#}
+						{#if $userinfo.userType == 1#}
+							{#if !$is_ios_app || !$cfg_ios_shelf#}
+							<a class="left_link" href="{#getUrlPath service='member' type='user' template='enter'#}{#if $is_app#}?appIndex=1&appFullScreen{#/if#}#join"><s></s>我要招人</a>  {#*  切换商家版  *#}
+							{#/if#}
+						{#else#}
+							<a class="left_link" href="{#$member_busiDomain#}/?currentPageOpen=1&module=job{#if $is_app#}&appIndex=1&appFullScreen{#/if#}"><s></s>我要招人</a>  {#*  切换商家版  *#}
+						{#/if#}
+					{#else#}
+					<a class="left_link" href="{#$member_busiDomain#}/?currentPageOpen=1&module=job{#if $is_app#}&appIndex=1&appFullScreen{#/if#}"><s></s>我要招人</a>  {#*  切换商家版  *#}
+					{#/if#}
+					<a class="right_link" href="{#getUrlPath service='member' type='user' template='setting'#}"></a>
+				</div>
+				<!-- 用户信息 -->
+				<div class="userinfo_box">
+					<div class="uhead_box">
+						<a class="uheadImg" href="{#getUrlPath service='member' type='user' template='profile'#}"><img src="{#$userinfo.photo#}" onerror="this.src='/static/images/noPhoto_60.jpg'" alt=""></a>
+						{#if $userinfo#}
+						<a class="uinfo"  href="{#getUrlPath service='member' type='user' template='profile'#}">
+							<h3><b>{#$detail_name#}</b><span>{#$detail_alias#}</span></h3>
+							<p>用户名：{#$userinfo.username#}</p>
+						</a>
+						{#else#}
+						<a class="uinfo"  href="{#getUrlPath service='member' type='user' template='login'#}">
+							<h3>登录/注册</h3>
+							<p>Hi，欢迎使用火鸟招聘</p>
+						</a>
+						{#/if#}
+					</div>
+			
+					{#if $detail_completion < 50#}
+					<a href="#" class="resume_btn complete_btn">完善简历</a>
+					{#else#}
+					<a href="javascript:;" class="resume_btn refresh_btn">刷新简历</a>
+					{#/if#}	
+
+					
+				</div>
+
+				<!-- 简历完成度 -->
+				{#if $detail_completion< 50#}
+				<div class="resume_complete_box">
+					<h4>完善简历，才可投递心仪职位！</h4>
+					<div class="complete_num_box">
+						<div class="complete_num"><span class="finished" style="width: {#$detail_completion#}%;"></span></div>
+						<p>简历完整度较低哦</p>
+					</div>
+				</div>
+				{#/if#}
+
+				<div class="module_data">
+					<ul>
+						<li>
+							<a href="{#$member_userDomain#}/collection.html?module=job">
+								<h4>{#if $userinfo#}{#$kechengzcount|default:0#}{#else#}0{#/if#}</h4>
+								<p>收藏职位</p>
+							</a>
+						</li>
+						<!-- <li>
+							<a href="{#$member_userDomain#}/job-delivery.html">
+								<h4>{#if $userinfo#}{#$jobcount|default:0#}{#else#}0{#/if#}</h4>
+								<p>已投职位</p>
+							</a>
+						</li> -->
+						
+						<li>
+							<a href="{#$member_userDomain#}/job-collections.html">
+								<h4>{#$collectCompany#}</h4>
+								<p>关注公司</p>
+							</a>
+						</li>
+						<li>
+							<a href="{#$member_userDomain#}/history?module=job">
+								<h4>{#$todayzjcount|default:0#}</h4>
+								<p>足迹</p>
+							</a>
+						</li>
+					</ul>
+				</div>
+
+				<!-- 实名认证提示 -->
+				{#if !$userinfo.certifyState#}
+				<div class="idCheckBox" >
+					<a href="javascript:;" class="close_btn"></a>
+					<div class="fn-left">
+						<h4>您还未实名认证</h4>
+						<p>提高简历可信度，更容易得到招聘方关注</p>
+					</div>
+					<a href="{#$member_userDomain#}/security-shCertify.html" class="btn_idCheck">去认证</a>
+				</div>
+				{#/if#}
+			</div>
+			<div class="content_box">
+				<!-- 我的投递 -->
+				<dl class="con link_con deliveryBox fn-clear">
+					<dt><h5>我的投递</h5><a href="#" class="edit_btn">查看全部</a></dt>
+					<dd>
+						<a href="{#$member_userDomain#}/job-delivery.html?state=1">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/read_icon.png" alt=""></div>
+							<p>被查看</p>
+						</a>
+					</dd>
+					<dd>
+						<a href="{#$member_userDomain#}/job-delivery.html?state=2">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/like.png" alt=""></div>
+							<p>有意向</p>
+						</a>
+					</dd>
+					<dd>
+						<a href="{#$member_userDomain#}/job-delivery.html?state=3">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/invitate.png" alt="">{#if $invitationNotice#}<span>新邀请</span>{#/if#}</div>
+							<p>邀面试</p>
+						</a>
+					</dd>
+					<dd>
+						<a href="{#$member_userDomain#}/job-delivery.html?state=4">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/noFit.png" alt=""></div>
+							<p>不合适</p>
+						</a>
+					</dd>
+				</dl>
+	
+				<!-- 感兴趣/面试 -->
+				<div class="postInfoBox">
+					<a class="interested_post">
+						<h4><b>{#$interestMe|default:0#}</b> 条</h4>
+						<span>对我感兴趣</span>
+					</a>
+					<a class="intereview_post {#if $invitationNotice#}new{#/if#}">
+						<h4><b>{#$invitationCount#}</b> 场</h4>
+						<span>我的面试</span>
+					</a>
+				</div>
+
+
+				<!-- 求职意向 -->
+				<ul class="link_con postLike">
+					<li class="intention"><a href="javascript:;"><h5>求职意向</h5><span>请选择求职意向</span></a></li>
+					<li class="resume_pub"><a href="javascript:;"><h5>简历公开</h5><span>请先完善简历</span></a></li>
+				</ul>
+	
+				<!-- 我要招人 -->
+				<div class="advBg"></div>
+				<div class="bg_gray_white"></div>
+			</div>
+		</div>
+		<div class="white_bg">
+			<!-- 常用功能 -->
+			<div class="commonFunc">
+				<h2>常用功能</h2>
+				<ul>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_1.png" alt=""></div>
+							<p>简历预览</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_2.png" alt=""></div>
+							<p>实名认证</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_3.png" alt=""><span>极速招聘</span></div>
+							<p>普工/店招</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_5.png" alt=""></div>
+							<p>校招实习</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_4.png" alt=""></div>
+							<p>屏蔽公司</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_6.png" alt=""></div>
+							<p>防骗指南</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_7.png" alt=""></div>
+							<p>签到领积分</p>
+						</a>
+					</li>
+					<li>
+						<a href="#">
+							<div class="icon"><img src="{#$templets_skin#}images/mcenter/job_8.png" alt=""></div>
+							<p>客服中心</p>
+						</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+
+		<div class="popContainer" id="popContainer">
+			<!-- 求职意向 -->
+			<!-- 当前简历的预览信息 -->
+			<div :class="['preview_mask mask_pop',{'showMask': previewPop}]"></div>
+			<div :class="['preview_pop pubPopBox',{'showPop':previewPop}]">
+				<div class="pop_head">
+					<h2>我的求职意向</h2>
+					<a href="javascript:;" class="close_pop" @click="previewPop = false"></a>
+				</div>
+				<div class="pop_con">
+					<ul class="selectUl">
+						<li @click="joinPopConfig = workStateConfig;joinStatePop = true">
+							<label for="">求职状态</label>
+							<span>{{reseumeDetail.workState_name ? reseumeDetail.workState_name : '去选择'}}</span>
+						</li>
+						<li  @click="joinPopConfig = workTimeConfig;joinStatePop = true">
+							<label for="">到岗时间</label>
+							<span>{{reseumeDetail.startWork ? reseumeDetail.startWork_name : '去选择'}}</span>
+						</li>
+					</ul>
+					<ul class="postLikeUl">
+						<li v-for="(item,ind) in reseumeDetail.job_list_name" v-if="item && item.length > 0">
+							<div class="left_info">
+								<h4>{{item[item.length - 1]}}</h4>
+								<p><template v-for="(jname,i) in item" v-if="(i<item.length - 1)">{{jname}} <em v-if="i < (item.length - 2)">/</em></template> </p>
+							</div>
+							<div class="right_btn"><a href="javascript:;" @click="showPostChose"></a></div>
+						</li>
+						
+					</ul>
+				</div>
+				<div class="pop_foot">
+					<a href="javascript:;" class="btn_blue" @click="showPostChose">添加意向工作</a>
+				</div>
+			</div>
+			
+
+			<!-- 求职状态 -->
+			<div class="popbox">
+				<div :class="['state_mask mask_pop',{'showMask':joinStatePop}]"  @click="joinStatePop = false;" ></div>
+				<div :class="['state_pop',{'showPop':joinStatePop}]" >
+					<h3>{{joinPopConfig.title}}</h3>
+					<div class="popCon">
+						<ul v-for="item in joinPopConfig.stateGroup">
+							<li v-for="state in item" @click="updateResume(joinPopConfig.name,state)">{{state.title}}</li>
+						</ul>
+						<ul v-if="joinPopConfig.btnCancel"></ul>
+					</div>
+					<div class="pop_foot" v-if="joinPopConfig.btnCancel">
+						<a href="javascript:;" class=" btn_cancel" @click="joinStatePop = false;">取消</a>
+					</div>
+				</div>
+			</div>
+
+
+			
+			<!-- 简历可见 -->
+			<div :class="['preview_mask mask_pop ',{'showMask':resumeShowPop}]" @click="resumeShowPop = false;"></div>
+			<div :class="['resumeShow_pop pubPopBox',{'showPop':resumeShowPop}] ">
+				<div class="pop_head">
+					<h2>能看到本人简历的招聘方范围</h2>
+					<a href="javascript:;" class="close_pop" @click="resumeShowPop = false;"></a>
+				</div>
+				<div class="pop_con">
+					
+					<ul class="postLikeUl">
+						<li :class="{'on_chose':!resumeShow}" @click="resumeShow = 0">
+							<div class="left_info">
+								<h4>所有招聘方</h4>
+								<p>所有招聘企业均可查看我的简历 </p>
+							</div>
+						</li>
+						<li :class="{'on_chose':resumeShow}" @click="resumeShow = 1">
+							<div class="left_info">
+								<h4>仅对投递方可见</h4>
+								<p>不会出现在公开简历库，仅主动投递后可查看我的简历</p>
+							</div>
+							<!-- <div class="right_btn"></div> -->
+						</li>
+					</ul>
+				</div>
+				<div class="pop_foot">
+					<a href="javascript:;" class="btn_blue" @click="updateResume">确定</a>
+				</div>
+			</div>
+
+
+			<!-- 选择意向职位 -->
+			<div :class="['intention_mask mask_pop', {'showMask':showPostPop}]"></div>
+			<div :class="['intention_pop pubPopBox', {'showPop':showPostPop}]">
+				<div class="pop_head">
+					<h2>请选择求职意向</h2>
+					<a href="javascript:;" class="close_text" @click="initPostPop">随便看看</a>
+				</div>
+				<div class="popTip">我们将根据求职意向，推荐展示更合适你的好职位</div>
+				<!-- 一级分类 -->
+				<div class="pop_con">
+					<ul class="categoryList_ul root_ul">
+						<li v-for="(item,index) in categoryList" :class="{'on_chose': choseType.length && choseType[0] === item.id}" @click="choseItem(item)">{{item.title}}</li>
+					</ul>
+				</div>
+
+				<!-- 二级分类 -->
+				<div v-if="choseTypeObj.length && choseTypeObj[0].lower && choseTypeObj[0].lower.length" :class="['parentContainer',{'showLeftPop':choseTypeObj.length && choseTypeObj[0].lower && choseTypeObj[0].lower.length && showSecondPop}]" >
+					<div class="parent_mask" @click="showSecondPop = false;"></div>
+					<div :class="['parentBox',{'open':choseType.length >= 2 && showChildPop}]" >
+						<ul class="categoryList_ul parent_ul">
+							<li  v-for="(item,index) in choseTypeObj[0].lower" :class="{'on_chose': choseType.length && choseType[1] === item.id}" @click="choseItem(item,1)">{{item.title}}</li>
+						</ul>
+						<div class="childrenBox" v-if="choseTypeObj.length > 1 && choseTypeObj[1]">
+							<ul class="categoryList_ul children_ul">
+								<li v-for="(item ,ind) in choseTypeObj[1].lower" :class="{'on_chose': choseType.length>2 && choseType[2] && choseType[2] === item.id}" @click="choseItem(item,2)"><h4>{{item.title}}</h4></li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+
+
+		</div>
+
+	</div>
+	{#include file="../../siteConfig/touch_bottom_5.0.html" active="fifthicon" bottom_module="job"#}
+<script type='text/javascript' src='{#$cfg_basehost#}/include/lang/{#$langList.currCode#}.js?v={#$cfg_staticVersion#}'></script>
+<script type="text/javascript" src="{#$templets_skin#}js/mcenter/public_intention_pop.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$templets_skin#}js/mcenter/index_job.js?v={#$cfg_staticVersion#}"></script>
+
+
+</body>
+</html>

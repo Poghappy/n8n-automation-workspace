@@ -1,0 +1,383 @@
+{
+  "name": "🏢 檀香山求职招聘内容生成器",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "cronExpression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "job-data-trigger",
+      "name": "职位数据收集触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.indeed.com/ads/apisearch",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "publisher",
+              "value": "{{ $vars.INDEED_PUBLISHER_ID }}"
+            },
+            {
+              "name": "q",
+              "value": ""
+            },
+            {
+              "name": "l",
+              "value": "Honolulu, HI"
+            },
+            {
+              "name": "sort",
+              "value": "date"
+            },
+            {
+              "name": "radius",
+              "value": "25"
+            },
+            {
+              "name": "st",
+              "value": "jobsite"
+            },
+            {
+              "name": "jt",
+              "value": "fulltime"
+            },
+            {
+              "name": "start",
+              "value": "0"
+            },
+            {
+              "name": "limit",
+              "value": "25"
+            },
+            {
+              "name": "fromage",
+              "value": "1"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            },
+            {
+              "name": "v",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "id": "indeed-jobs",
+      "name": "Indeed职位抓取",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.governmentjobs.com/careers/honolulu.rss",
+        "options": {
+          "headers": {
+            "User-Agent": "JobBot/1.0"
+          }
+        }
+      },
+      "id": "government-jobs",
+      "name": "政府职位抓取",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.hawaiipacifichealth.org/careers/search-openings/api/jobs",
+        "options": {
+          "headers": {
+            "User-Agent": "JobBot/1.0"
+          }
+        }
+      },
+      "id": "healthcare-jobs",
+      "name": "医疗职位抓取",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 职位数据处理和质量评分\nconst allJobs = [];\n\n// 处理Indeed数据\nconst indeedData = $('indeed-jobs').first().json;\nif (indeedData && indeedData.results) {\n  for (const job of indeedData.results) {\n    allJobs.push({\n      source: 'Indeed',\n      title: job.jobtitle,\n      company: job.company,\n      location: job.formattedLocation,\n      snippet: job.snippet,\n      url: job.url,\n      posted_date: job.date,\n      salary: job.salary || 'Not specified',\n      job_type: 'Full-time',\n      raw_data: job\n    });\n  }\n}\n\n// 处理政府职位数据\nconst govData = $('government-jobs').first().json;\n// RSS解析逻辑...\n\n// 处理医疗职位数据\nconst healthData = $('healthcare-jobs').first().json;\n// API数据解析逻辑...\n\n// 职位质量评分算法\nfunction calculateJobScore(job) {\n  let score = 0;\n  \n  // 薪资透明度 (30分)\n  if (job.salary && job.salary !== 'Not specified') {\n    score += 30;\n  }\n  \n  // 公司知名度 (25分)\n  const famousCompanies = [\n    'Hawaii Pacific Health', 'Hawaiian Airlines', 'Bank of Hawaii',\n    'University of Hawaii', 'City and County of Honolulu',\n    'State of Hawaii', 'Kaiser Permanente', 'Queen\\'s Health'\n  ];\n  \n  if (famousCompanies.some(company => \n    job.company.toLowerCase().includes(company.toLowerCase())\n  )) {\n    score += 25;\n  }\n  \n  // 职位描述完整度 (20分)\n  if (job.snippet && job.snippet.length > 100) {\n    score += 20;\n  }\n  \n  // 华人友好关键词 (15分)\n  const chineseFriendlyKeywords = [\n    'bilingual', 'chinese', 'mandarin', 'cantonese', \n    'multicultural', 'diverse', 'international'\n  ];\n  \n  const jobText = (job.title + ' ' + job.snippet + ' ' + job.company).toLowerCase();\n  if (chineseFriendlyKeywords.some(keyword => jobText.includes(keyword))) {\n    score += 15;\n  }\n  \n  // 发布时效性 (10分)\n  const postedDate = new Date(job.posted_date);\n  const now = new Date();\n  const daysDiff = (now - postedDate) / (1000 * 60 * 60 * 24);\n  \n  if (daysDiff <= 1) {\n    score += 10;\n  } else if (daysDiff <= 3) {\n    score += 5;\n  }\n  \n  return score;\n}\n\n// 为所有职位计算评分\nfor (const job of allJobs) {\n  job.quality_score = calculateJobScore(job);\n  job.chinese_friendly = job.quality_score >= 15; // 如果有华人友好关键词\n}\n\n// 按评分排序，取前20个\nallJobs.sort((a, b) => b.quality_score - a.quality_score);\nconst topJobs = allJobs.slice(0, 20);\n\n// 按行业分类\nconst jobsByIndustry = {\n  healthcare: [],\n  government: [],\n  education: [],\n  tourism: [],\n  finance: [],\n  technology: [],\n  other: []\n};\n\nfor (const job of topJobs) {\n  const jobText = (job.title + ' ' + job.company).toLowerCase();\n  \n  if (jobText.includes('nurse') || jobText.includes('medical') || jobText.includes('health')) {\n    jobsByIndustry.healthcare.push(job);\n  } else if (jobText.includes('government') || jobText.includes('city') || jobText.includes('state')) {\n    jobsByIndustry.government.push(job);\n  } else if (jobText.includes('teacher') || jobText.includes('education') || jobText.includes('university')) {\n    jobsByIndustry.education.push(job);\n  } else if (jobText.includes('hotel') || jobText.includes('tourism') || jobText.includes('restaurant')) {\n    jobsByIndustry.tourism.push(job);\n  } else if (jobText.includes('bank') || jobText.includes('finance') || jobText.includes('accounting')) {\n    jobsByIndustry.finance.push(job);\n  } else if (jobText.includes('software') || jobText.includes('developer') || jobText.includes('IT')) {\n    jobsByIndustry.technology.push(job);\n  } else {\n    jobsByIndustry.other.push(job);\n  }\n}\n\nreturn [{\n  json: {\n    total_jobs: allJobs.length,\n    top_jobs: topJobs,\n    jobs_by_industry: jobsByIndustry,\n    collection_date: new Date().toISOString(),\n    next_update: new Date(Date.now() + 24*60*60*1000).toISOString()\n  }\n}];"
+      },
+      "id": "job-processor",
+      "name": "职位数据处理器",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "jobs",
+        "columns": "title, company, location, description, salary, job_type, industry, source_url, quality_score, chinese_friendly, posted_date, created_at",
+        "additionalFields": {
+          "mode": "upsert",
+          "upsertFields": ["title", "company"]
+        }
+      },
+      "id": "save-jobs",
+      "name": "保存职位数据",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-jobs",
+          "name": "Jobs PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "cronExpression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "content-trigger",
+      "name": "内容生成触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 根据星期确定内容策略\nconst today = new Date();\nconst dayOfWeek = today.getDay(); // 0=Sunday, 1=Monday, etc.\nconst dateStr = today.toISOString().split('T')[0];\n\n// 内容策略映射\nconst contentStrategy = {\n  1: { // Monday\n    type: \"热门职位推荐\",\n    title_template: \"本周热招 | 檀香山最新高薪职位\",\n    focus: \"high_salary\",\n    job_count: 6,\n    target_audience: \"主动求职者\"\n  },\n  2: { // Tuesday\n    type: \"行业深度分析\",\n    title_template: \"行业洞察 | {industry}就业市场趋势分析\",\n    focus: \"industry_analysis\",\n    job_count: 4,\n    target_audience: \"职业规划者\"\n  },\n  3: { // Wednesday\n    type: \"求职技巧分享\",\n    title_template: \"求职宝典 | 面试技巧与简历优化\",\n    focus: \"job_tips\",\n    job_count: 3,\n    target_audience: \"求职新手\"\n  },\n  4: { // Thursday\n    type: \"雇主专访\",\n    title_template: \"雇主说 | {company}招聘内幕大揭秘\",\n    focus: \"employer_interview\",\n    job_count: 2,\n    target_audience: \"求职者和HR\"\n  },\n  5: { // Friday\n    type: \"薪资福利解析\",\n    title_template: \"薪资透明 | 夏威夷{industry}薪资水平大揭秘\",\n    focus: \"salary_analysis\",\n    job_count: 5,\n    target_audience: \"薪资敏感求职者\"\n  },\n  6: { // Saturday\n    type: \"职场生活分享\",\n    title_template: \"职场故事 | 在夏威夷{industry}工作是什么体验\",\n    focus: \"workplace_culture\",\n    job_count: 3,\n    target_audience: \"新移民和外来求职者\"\n  },\n  0: { // Sunday\n    type: \"下周预告+互动\",\n    title_template: \"下周预告 | 即将发布的招聘信息\",\n    focus: \"preview_interaction\",\n    job_count: 8,\n    target_audience: \"忠实读者\"\n  }\n};\n\n// 获取今日策略\nconst todayStrategy = contentStrategy[dayOfWeek];\n\n// 确定重点行业 (轮换)\nconst industries = ['healthcare', 'government', 'education', 'tourism', 'finance', 'technology'];\nconst weekNumber = Math.floor(today.getTime() / (7 * 24 * 60 * 60 * 1000));\nconst focusIndustry = industries[weekNumber % industries.length];\n\nreturn [{\n  json: {\n    date: dateStr,\n    day_of_week: dayOfWeek,\n    content_type: todayStrategy.type,\n    title_template: todayStrategy.title_template,\n    focus: todayStrategy.focus,\n    job_count: todayStrategy.job_count,\n    target_audience: todayStrategy.target_audience,\n    focus_industry: focusIndustry,\n    publish_time: \"08:00\"\n  }\n}];"
+      },
+      "id": "content-strategy",
+      "name": "内容策略规划",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "jobs",
+        "where": {
+          "conditions": [
+            {
+              "column": "created_at",
+              "operator": "greaterEqual",
+              "value": "={{ new Date(Date.now() - 7*24*60*60*1000).toISOString() }}"
+            },
+            {
+              "column": "quality_score",
+              "operator": "greaterEqual",
+              "value": 60
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "quality_score",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "limit": "={{ $json.job_count }}"
+      },
+      "id": "get-featured-jobs",
+      "name": "获取精选职位",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [680, 600],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-jobs",
+          "name": "Jobs PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "你是一位资深的夏威夷就业顾问，专门为华人求职者提供专业建议。你对檀香山的就业市场非常了解，能够提供实用的求职建议和行业洞察。\n\n请基于提供的职位信息和内容策略，生成一篇高质量的微信公众号文章。\n\n要求：\n1. 标题吸引人，突出薪资或机会亮点\n2. 开头简洁有力，直击求职者痛点\n3. 职位信息结构化展示，易于阅读\n4. 包含实用的申请建议和注意事项\n5. 融入夏威夷本地文化和生活元素\n6. 语言专业但通俗易懂\n7. 字数控制在1200-1800字\n8. 包含明确的行动号召\n9. 适当使用emoji增加可读性\n\n输出格式：\n标题: [包含emoji的吸引人标题]\n\n正文: [完整文章内容，包含小标题]"
+            },
+            {
+              "role": "user",
+              "content": "请基于以下信息生成文章：\n\n内容类型: {{ $('content-strategy').item.json.content_type }}\n目标读者: {{ $('content-strategy').item.json.target_audience }}\n重点行业: {{ $('content-strategy').item.json.focus_industry }}\n标题模板: {{ $('content-strategy').item.json.title_template }}\n\n精选职位信息:\n{{ JSON.stringify($('get-featured-jobs').all(), null, 2) }}\n\n请生成一篇专业且实用的求职招聘文章。"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "generate-content",
+      "name": "AI内容生成",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "generate",
+        "model": "dall-e-3",
+        "prompt": "Create a professional job recruitment image for Hawaii/Honolulu. Style: Clean, modern, welcoming. Elements: {{ $('content-strategy').item.json.focus_industry }} industry elements, Hawaiian tropical background, professional people. Colors: Professional blue, warm orange, tropical green. Mood: Opportunity, growth, island lifestyle. Size: 1024x1024. No text overlay needed.",
+        "options": {
+          "quality": "standard",
+          "size": "1024x1024",
+          "style": "natural"
+        }
+      },
+      "id": "generate-image",
+      "name": "生成配图",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [900, 800]
+    }
+  ],
+  "connections": {
+    "职位数据收集触发器": {
+      "main": [
+        [
+          {
+            "node": "Indeed职位抓取",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "政府职位抓取",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "医疗职位抓取",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Indeed职位抓取": {
+      "main": [
+        [
+          {
+            "node": "职位数据处理器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "政府职位抓取": {
+      "main": [
+        [
+          {
+            "node": "职位数据处理器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "医疗职位抓取": {
+      "main": [
+        [
+          {
+            "node": "职位数据处理器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "职位数据处理器": {
+      "main": [
+        [
+          {
+            "node": "保存职位数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容生成触发器": {
+      "main": [
+        [
+          {
+            "node": "内容策略规划",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容策略规划": {
+      "main": [
+        [
+          {
+            "node": "获取精选职位",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取精选职位": {
+      "main": [
+        [
+          {
+            "node": "AI内容生成",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "生成配图",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-04T16:00:00.000Z",
+      "updatedAt": "2025-01-04T16:00:00.000Z",
+      "id": "job-recruitment",
+      "name": "求职招聘"
+    }
+  ],
+  "triggerCount": 2,
+  "updatedAt": "2025-01-04T16:00:00.000Z",
+  "versionId": "1"
+}

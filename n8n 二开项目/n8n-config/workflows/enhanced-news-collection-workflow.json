@@ -1,0 +1,238 @@
+{
+  "name": "火鸟门户新闻采集工作流 - 多源增强版",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "定时触发器",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// RSS源配置\nconst rssSources = [\n  {\n    name: 'The Neuron',\n    url: 'https://www.theneuron.ai/feed',\n    category: 'AI资讯',\n    categoryId: 1\n  },\n  {\n    name: 'Futurepedia',\n    url: 'https://www.futurepedia.io/rss',\n    category: 'AI工具',\n    categoryId: 1\n  },\n  {\n    name: 'Superhuman',\n    url: 'https://blog.superhuman.com/feed/',\n    category: '科技资讯',\n    categoryId: 1\n  },\n  {\n    name: 'The Rundown AI',\n    url: 'https://www.therundown.ai/feed',\n    category: 'AI资讯',\n    categoryId: 1\n  },\n  {\n    name: 'AI News',\n    url: 'https://artificialintelligence-news.com/feed/',\n    category: 'AI新闻',\n    categoryId: 1\n  },\n  {\n    name: 'VentureBeat AI',\n    url: 'https://venturebeat.com/ai/feed/',\n    category: 'AI商业',\n    categoryId: 2\n  }\n];\n\n// GitHub项目新闻源配置\nconst githubSources = [\n  {\n    name: 'GitHub Trending',\n    repo: 'trending',\n    category: '开源项目',\n    categoryId: 1\n  },\n  {\n    name: 'Awesome AI',\n    repo: 'josephmisiti/awesome-machine-learning',\n    category: 'AI项目',\n    categoryId: 1\n  },\n  {\n    name: 'OpenAI',\n    repo: 'openai',\n    category: 'AI研究',\n    categoryId: 1\n  }\n];\n\n// 返回所有数据源配置\nreturn {\n  json: {\n    rssSources,\n    githubSources,\n    timestamp: new Date().toISOString(),\n    totalSources: rssSources.length + githubSources.length\n  }\n};"
+      },
+      "id": "source-config",
+      "name": "数据源配置",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// RSS采集逻辑\nconst axios = require('axios');\nconst xml2js = require('xml2js');\n\nconst rssSources = $json.rssSources;\nconst collectedItems = [];\nconst errors = [];\n\n// RSS采集函数\nasync function fetchRSSFeed(source) {\n  try {\n    console.log(`开始采集RSS源: ${source.name}`);\n    \n    const response = await axios.get(source.url, {\n      timeout: 30000,\n      headers: {\n        'User-Agent': 'Mozilla/5.0 (compatible; n8n-news-collector/1.0)'\n      }\n    });\n\n    const parser = new xml2js.Parser({\n      explicitArray: false,\n      ignoreAttrs: false,\n      mergeAttrs: true\n    });\n\n    const result = await parser.parseStringPromise(response.data);\n    const items = result.rss?.channel?.item || result.feed?.entry || [];\n    \n    if (!Array.isArray(items)) {\n      return [items].filter(Boolean);\n    }\n    \n    return items.slice(0, 10); // 限制每个源最多10条\n    \n  } catch (error) {\n    console.error(`RSS采集失败 - ${source.name}:`, error.message);\n    errors.push({\n      source: source.name,\n      error: error.message,\n      type: 'rss'\n    });\n    return [];\n  }\n}\n\n// 数据标准化函数\nfunction normalizeRSSItem(item, source) {\n  const publishDate = item.pubDate || item.published || item.updated || new Date().toISOString();\n  \n  return {\n    title: item.title?._ || item.title || '',\n    content: item.description?._ || item.description || item.summary?._ || item.summary || item.content?._ || item.content || '',\n    summary: item.description?._ || item.description || item.summary?._ || item.summary || '',\n    author: item.author?.name || item.author || item['dc:creator'] || source.name,\n    source: source.name,\n    category: source.category,\n    categoryId: source.categoryId,\n    source_url: item.link?.href || item.link || item.guid?._ || item.guid || '',\n    image_url: item.enclosure?.url || item['media:thumbnail']?.url || '',\n    keywords: item.category || '',\n    publishedAt: publishDate,\n    collectedAt: new Date().toISOString(),\n    sourceType: 'rss',\n    originalData: item\n  };\n}\n\n// 并行采集所有RSS源\nconst rssPromises = rssSources.map(async (source) => {\n  const items = await fetchRSSFeed(source);\n  return items.map(item => normalizeRSSItem(item, source));\n});\n\ntry {\n  const rssResults = await Promise.all(rssPromises);\n  \n  // 合并所有结果\n  rssResults.forEach(sourceItems => {\n    collectedItems.push(...sourceItems);\n  });\n  \n  console.log(`RSS采集完成: ${collectedItems.length}条新闻, ${errors.length}个错误`);\n  \n  return {\n    json: {\n      items: collectedItems,\n      errors,\n      summary: {\n        totalItems: collectedItems.length,\n        errorCount: errors.length,\n        sources: rssSources.length,\n        collectedAt: new Date().toISOString()\n      }\n    }\n  };\n  \n} catch (error) {\n  console.error('RSS批量采集失败:', error);\n  throw new Error(`RSS采集失败: ${error.message}`);\n}"
+      },
+      "id": "rss-collector",
+      "name": "RSS新闻采集",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// GitHub项目新闻采集逻辑\nconst axios = require('axios');\n\nconst githubSources = $json.githubSources;\nconst collectedItems = [];\nconst errors = [];\n\n// GitHub API配置\nconst GITHUB_API_BASE = 'https://api.github.com';\nconst GITHUB_TOKEN = process.env.GITHUB_TOKEN; // 可选，提高API限制\n\n// GitHub API请求配置\nconst githubConfig = {\n  timeout: 30000,\n  headers: {\n    'User-Agent': 'n8n-news-collector/1.0',\n    'Accept': 'application/vnd.github.v3+json'\n  }\n};\n\nif (GITHUB_TOKEN) {\n  githubConfig.headers['Authorization'] = `token ${GITHUB_TOKEN}`;\n}\n\n// 获取GitHub趋势项目\nasync function fetchGitHubTrending() {\n  try {\n    // 使用GitHub搜索API获取最近热门项目\n    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\n    const searchUrl = `${GITHUB_API_BASE}/search/repositories?q=created:>${oneWeekAgo}&sort=stars&order=desc&per_page=10`;\n    \n    const response = await axios.get(searchUrl, githubConfig);\n    return response.data.items || [];\n    \n  } catch (error) {\n    console.error('GitHub趋势获取失败:', error.message);\n    errors.push({\n      source: 'GitHub Trending',\n      error: error.message,\n      type: 'github-trending'\n    });\n    return [];\n  }\n}\n\n// 获取特定仓库的最新发布\nasync function fetchRepoReleases(repoPath) {\n  try {\n    const releasesUrl = `${GITHUB_API_BASE}/repos/${repoPath}/releases?per_page=5`;\n    const response = await axios.get(releasesUrl, githubConfig);\n    return response.data || [];\n    \n  } catch (error) {\n    console.error(`仓库发布获取失败 - ${repoPath}:`, error.message);\n    errors.push({\n      source: repoPath,\n      error: error.message,\n      type: 'github-releases'\n    });\n    return [];\n  }\n}\n\n// 获取仓库的最新提交\nasync function fetchRepoCommits(repoPath) {\n  try {\n    const commitsUrl = `${GITHUB_API_BASE}/repos/${repoPath}/commits?per_page=5`;\n    const response = await axios.get(commitsUrl, githubConfig);\n    return response.data || [];\n    \n  } catch (error) {\n    console.error(`仓库提交获取失败 - ${repoPath}:`, error.message);\n    errors.push({\n      source: repoPath,\n      error: error.message,\n      type: 'github-commits'\n    });\n    return [];\n  }\n}\n\n// 标准化GitHub项目数据\nfunction normalizeGitHubRepo(repo, source) {\n  return {\n    title: `${repo.name} - ${repo.description || '新开源项目'}`,\n    content: `项目描述: ${repo.description || '暂无描述'}\\n\\n` +\n             `编程语言: ${repo.language || '未知'}\\n` +\n             `Stars: ${repo.stargazers_count || 0}\\n` +\n             `Forks: ${repo.forks_count || 0}\\n` +\n             `创建时间: ${repo.created_at}\\n` +\n             `最后更新: ${repo.updated_at}\\n\\n` +\n             `项目地址: ${repo.html_url}`,\n    summary: repo.description || `${repo.name} 开源项目`,\n    author: repo.owner?.login || 'GitHub用户',\n    source: source.name,\n    category: source.category,\n    categoryId: source.categoryId,\n    source_url: repo.html_url,\n    image_url: repo.owner?.avatar_url || '',\n    keywords: `${repo.language || ''}, 开源, GitHub, ${repo.topics?.join(', ') || ''}`,\n    publishedAt: repo.created_at,\n    collectedAt: new Date().toISOString(),\n    sourceType: 'github-repo',\n    metadata: {\n      stars: repo.stargazers_count,\n      forks: repo.forks_count,\n      language: repo.language,\n      topics: repo.topics\n    },\n    originalData: repo\n  };\n}\n\n// 标准化GitHub发布数据\nfunction normalizeGitHubRelease(release, repoName, source) {\n  return {\n    title: `${repoName} 发布 ${release.tag_name}`,\n    content: `发布说明:\\n${release.body || '暂无发布说明'}\\n\\n` +\n             `版本: ${release.tag_name}\\n` +\n             `发布时间: ${release.published_at}\\n` +\n             `下载地址: ${release.html_url}`,\n    summary: `${repoName} 发布新版本 ${release.tag_name}`,\n    author: release.author?.login || 'GitHub用户',\n    source: source.name,\n    category: source.category,\n    categoryId: source.categoryId,\n    source_url: release.html_url,\n    image_url: release.author?.avatar_url || '',\n    keywords: `${repoName}, 发布, 版本更新, GitHub`,\n    publishedAt: release.published_at,\n    collectedAt: new Date().toISOString(),\n    sourceType: 'github-release',\n    metadata: {\n      tagName: release.tag_name,\n      prerelease: release.prerelease,\n      draft: release.draft\n    },\n    originalData: release\n  };\n}\n\n// 处理GitHub数据源\nfor (const source of githubSources) {\n  try {\n    if (source.repo === 'trending') {\n      // 获取趋势项目\n      const trendingRepos = await fetchGitHubTrending();\n      trendingRepos.forEach(repo => {\n        collectedItems.push(normalizeGitHubRepo(repo, source));\n      });\n      \n    } else {\n      // 获取特定仓库的发布和提交\n      const [releases, commits] = await Promise.all([\n        fetchRepoReleases(source.repo),\n        fetchRepoCommits(source.repo)\n      ]);\n      \n      // 处理发布信息\n      releases.slice(0, 3).forEach(release => {\n        collectedItems.push(normalizeGitHubRelease(release, source.repo.split('/')[1], source));\n      });\n    }\n    \n  } catch (error) {\n    console.error(`GitHub源处理失败 - ${source.name}:`, error.message);\n    errors.push({\n      source: source.name,\n      error: error.message,\n      type: 'github-processing'\n    });\n  }\n}\n\nconsole.log(`GitHub采集完成: ${collectedItems.length}条新闻, ${errors.length}个错误`);\n\nreturn {\n  json: {\n    items: collectedItems,\n    errors,\n    summary: {\n      totalItems: collectedItems.length,\n      errorCount: errors.length,\n      sources: githubSources.length,\n      collectedAt: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "github-collector",
+      "name": "GitHub项目采集",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 合并所有采集的数据\nconst rssData = $input.first().json;\nconst githubData = $input.last().json;\n\nconst allItems = [];\nconst allErrors = [];\n\n// 合并RSS数据\nif (rssData && rssData.items) {\n  allItems.push(...rssData.items);\n}\nif (rssData && rssData.errors) {\n  allErrors.push(...rssData.errors);\n}\n\n// 合并GitHub数据\nif (githubData && githubData.items) {\n  allItems.push(...githubData.items);\n}\nif (githubData && githubData.errors) {\n  allErrors.push(...githubData.errors);\n}\n\n// 数据验证和清理\nconst validItems = allItems.filter(item => {\n  // 基础验证\n  if (!item.title || !item.content) {\n    console.warn('跳过无效数据项:', { title: item.title, hasContent: !!item.content });\n    return false;\n  }\n  \n  // 长度验证\n  if (item.title.length < 5 || item.title.length > 200) {\n    console.warn('标题长度不符合要求:', item.title.length);\n    return false;\n  }\n  \n  if (item.content.length < 50) {\n    console.warn('内容过短:', item.content.length);\n    return false;\n  }\n  \n  return true;\n});\n\n// 去重处理（基于标题相似度）\nconst deduplicatedItems = [];\nconst seenTitles = new Set();\n\nfor (const item of validItems) {\n  const normalizedTitle = item.title.toLowerCase().replace(/[^\\w\\s\\u4e00-\\u9fff]/g, '').trim();\n  \n  // 简单的重复检测\n  let isDuplicate = false;\n  for (const seenTitle of seenTitles) {\n    if (normalizedTitle.includes(seenTitle) || seenTitle.includes(normalizedTitle)) {\n      isDuplicate = true;\n      break;\n    }\n  }\n  \n  if (!isDuplicate) {\n    seenTitles.add(normalizedTitle);\n    deduplicatedItems.push(item);\n  }\n}\n\n// 按发布时间排序\ndeduplicatedItems.sort((a, b) => {\n  const dateA = new Date(a.publishedAt || a.collectedAt);\n  const dateB = new Date(b.publishedAt || b.collectedAt);\n  return dateB - dateA; // 最新的在前\n});\n\n// 限制总数量\nconst finalItems = deduplicatedItems.slice(0, 50);\n\nconst summary = {\n  totalCollected: allItems.length,\n  validItems: validItems.length,\n  afterDeduplication: deduplicatedItems.length,\n  finalItems: finalItems.length,\n  errorCount: allErrors.length,\n  processedAt: new Date().toISOString()\n};\n\nconsole.log('数据合并完成:', summary);\n\nreturn finalItems.map(item => ({ json: item }));"
+      },
+      "id": "data-merger",
+      "name": "数据合并处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 火鸟门户内容处理核心模块集成\nconst { HuoNiaoContentProcessor } = require('./火鸟门户_内容处理核心模块.js');\n\n// 初始化内容处理器\nconst processor = new HuoNiaoContentProcessor({\n  aiApiKey: process.env.OPENAI_API_KEY,\n  enableCache: true,\n  enableLogging: true,\n  similarityThreshold: 0.8,\n  minContentLength: 50,\n  maxContentLength: 5000,\n  minTitleLength: 5,\n  maxTitleLength: 60\n});\n\n// 获取输入数据\nconst inputData = $input.first().json;\n\n// 数据预处理和增强\nconst preprocessedData = {\n  title: inputData.title || '',\n  content: inputData.content || inputData.summary || '',\n  category: inputData.category || '科技资讯',\n  categoryId: inputData.categoryId || 1,\n  author: inputData.author || 'AI采集',\n  source: inputData.source || 'API采集',\n  source_url: inputData.source_url || '',\n  image_url: inputData.image_url || '',\n  keywords: inputData.keywords || '',\n  summary: inputData.summary || '',\n  publishedAt: inputData.publishedAt || new Date().toISOString(),\n  sourceType: inputData.sourceType || 'unknown',\n  metadata: inputData.metadata || {},\n  \n  // 新增字段用于火鸟门户\n  cityid: 1, // 夏威夷城市ID\n  arcrank: 1, // 已审核状态\n  weight: 1, // 排序权重\n  notpost: 0, // 开启评论\n  color: '', // 标题颜色\n  flag: 'r', // 推荐标记\n  \n  images: inputData.images || (inputData.image_url ? [inputData.image_url] : [])\n};\n\ntry {\n  // 处理内容\n  const result = await processor.processContent(preprocessedData, {\n    enableAI: true,\n    optimizeTitle: true,\n    optimizeContent: true,\n    generateKeywords: true,\n    generateSummary: true,\n    strictMode: false\n  });\n\n  if (!result.success) {\n    if (result.isDuplicate) {\n      return {\n        json: {\n          status: 'skipped',\n          reason: 'duplicate_content',\n          message: '检测到重复内容，跳过处理',\n          duplicateInfo: result.duplicateInfo,\n          originalData: inputData\n        }\n      };\n    }\n    throw new Error(result.error || '内容处理失败');\n  }\n\n  // 增强处理后的数据\n  const enhancedData = {\n    ...result.data,\n    \n    // 确保火鸟门户必需字段\n    title: result.data.title.substring(0, 60), // 限制标题长度\n    subtitle: result.data.summary ? result.data.summary.substring(0, 36) : '', // 短标题\n    description: result.data.summary ? result.data.summary.substring(0, 255) : '', // 描述\n    \n    // 处理关键词\n    keywords: typeof result.data.keywords === 'string' \n      ? result.data.keywords.substring(0, 50)\n      : (Array.isArray(result.data.keywords) \n          ? result.data.keywords.join(',').substring(0, 50)\n          : ''),\n    \n    // 时间处理\n    pubdate: Math.floor(new Date(result.data.publishedAt || Date.now()).getTime() / 1000),\n    \n    // 状态字段\n    processing_status: 'processed',\n    quality_score: result.metadata.qualityScore || 0,\n    \n    // 保留原始数据用于调试\n    originalData: inputData,\n    processingMetadata: result.metadata\n  };\n\n  // 返回处理后的数据\n  return {\n    json: {\n      status: 'processed',\n      data: enhancedData,\n      metadata: result.metadata,\n      originalData: inputData\n    }\n  };\n\n} catch (error) {\n  console.error('内容处理失败:', error);\n  return {\n    json: {\n      status: 'error',\n      error: error.message,\n      originalData: inputData,\n      timestamp: new Date().toISOString()\n    }\n  };\n}"
+      },
+      "id": "enhanced-content-processor",
+      "name": "增强智能内容处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "operation": "equal",
+              "value2": "processed"
+            }
+          ]
+        }
+      },
+      "id": "enhanced-content-filter",
+      "name": "增强内容状态检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 错误处理和日志记录\nconst inputData = $input.first().json;\n\nconst errorLog = {\n  timestamp: new Date().toISOString(),\n  status: 'content_processing_failed',\n  error: inputData.error || 'Unknown error',\n  originalTitle: inputData.originalData?.title || 'Unknown',\n  source: inputData.originalData?.source || 'Unknown',\n  workflow: 'enhanced-news-collection'\n};\n\nconsole.error('内容处理失败:', JSON.stringify(errorLog));\n\n// 可以在这里添加错误通知逻辑\n// 例如发送到Slack、邮件或其他监控系统\n\nreturn {\n  json: {\n    ...errorLog,\n    data: inputData\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "错误处理记录",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 成功处理统计和日志\nconst processedData = $input.first().json;\n\nconst successLog = {\n  timestamp: new Date().toISOString(),\n  status: 'content_processed_successfully',\n  title: processedData.data?.title || 'Unknown',\n  source: processedData.data?.source || 'Unknown',\n  sourceType: processedData.data?.sourceType || 'Unknown',\n  qualityScore: processedData.metadata?.qualityScore || 0,\n  categoryConfidence: processedData.metadata?.categoryConfidence || 0,\n  workflow: 'enhanced-news-collection'\n};\n\nconsole.log('内容处理成功:', JSON.stringify(successLog));\n\n// 准备发送到下一个节点的数据\nreturn {\n  json: {\n    ...processedData.data,\n    processingLog: successLog\n  }\n};"
+      },
+      "id": "success-processor",
+      "name": "成功处理统计",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    }
+  ],
+  "connections": {
+    "定时触发器": {
+      "main": [
+        [
+          {
+            "node": "数据源配置",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据源配置": {
+      "main": [
+        [
+          {
+            "node": "RSS新闻采集",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "GitHub项目采集",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS新闻采集": {
+      "main": [
+        [
+          {
+            "node": "数据合并处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub项目采集": {
+      "main": [
+        [
+          {
+            "node": "数据合并处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据合并处理": {
+      "main": [
+        [
+          {
+            "node": "增强智能内容处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "增强智能内容处理": {
+      "main": [
+        [
+          {
+            "node": "增强内容状态检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "增强内容状态检查": {
+      "main": [
+        [
+          {
+            "node": "成功处理统计",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误处理记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Asia/Shanghai",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handling-workflow"
+  },
+  "staticData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "enhanced-news-collection-v1.0.0"
+  },
+  "pinData": {},
+  "versionId": "enhanced-v1.0.0",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "id": "huoniao",
+      "name": "火鸟门户"
+    },
+    {
+      "id": "news",
+      "name": "新闻采集"
+    },
+    {
+      "id": "ai",
+      "name": "AI处理"
+    },
+    {
+      "id": "enhanced",
+      "name": "增强版"
+    },
+    {
+      "id": "multi-source",
+      "name": "多源采集"
+    }
+  ]
+}

@@ -1,0 +1,510 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # 每天凌晨3点执行安全扫描
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: '扫描类型'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - dependencies
+          - secrets
+          - docker
+          - code
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  dependency-scan:
+    name: 依赖漏洞扫描
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'dependencies' || github.event.inputs.scan_type == '' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: 安装依赖
+        run: npm ci
+      
+      - name: NPM审计
+        run: |
+          echo "执行NPM安全审计..."
+          npm audit --audit-level=moderate --json > npm-audit-report.json || true
+          
+          # 生成可读报告
+          npm audit --audit-level=moderate > npm-audit-readable.txt || true
+          
+          # 检查高危漏洞
+          high_vulns=$(jq '.metadata.vulnerabilities.high // 0' npm-audit-report.json)
+          critical_vulns=$(jq '.metadata.vulnerabilities.critical // 0' npm-audit-report.json)
+          
+          echo "高危漏洞数量: $high_vulns"
+          echo "严重漏洞数量: $critical_vulns"
+          
+          if [ "$critical_vulns" -gt 0 ]; then
+            echo "::error::发现 $critical_vulns 个严重漏洞"
+            exit 1
+          elif [ "$high_vulns" -gt 5 ]; then
+            echo "::warning::发现 $high_vulns 个高危漏洞，超过阈值(5)"
+          fi
+      
+      - name: Snyk漏洞扫描
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --json-file-output=snyk-report.json
+      
+      - name: 上传安全报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-reports
+          path: |
+            npm-audit-report.json
+            npm-audit-readable.txt
+            snyk-report.json
+          retention-days: 30
+
+  secret-scan:
+    name: 密钥泄露扫描
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'secrets' || github.event.inputs.scan_type == '' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: TruffleHog密钥扫描
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+      
+      - name: GitLeaks密钥扫描
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      
+      - name: 自定义密钥模式扫描
+        run: |
+          echo "执行自定义密钥模式扫描..."
+          
+          # 定义敏感模式
+          patterns=(
+            "password\s*=\s*['\"][^'\"]{8,}['\"]"
+            "api[_-]?key\s*=\s*['\"][^'\"]{20,}['\"]"
+            "secret\s*=\s*['\"][^'\"]{16,}['\"]"
+            "token\s*=\s*['\"][^'\"]{20,}['\"]"
+            "AKIA[0-9A-Z]{16}"
+            "sk_live_[0-9a-zA-Z]{24}"
+            "rk_live_[0-9a-zA-Z]{24}"
+          )
+          
+          found_secrets=false
+          
+          for pattern in "${patterns[@]}"; do
+            echo "检查模式: $pattern"
+            
+            if grep -r -E "$pattern" . --exclude-dir=.git --exclude-dir=node_modules --exclude="*.log" --exclude="security-scan.yml"; then
+              echo "::warning::发现可能的敏感信息匹配模式: $pattern"
+              found_secrets=true
+            fi
+          done
+          
+          if [ "$found_secrets" = true ]; then
+            echo "::error::发现潜在的密钥泄露，请检查上述匹配项"
+            exit 1
+          else
+            echo "✅ 未发现明显的密钥泄露"
+          fi
+
+  docker-scan:
+    name: Docker镜像安全扫描
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'docker' || github.event.inputs.scan_type == '' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 设置Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 构建测试镜像
+        run: |
+          # 构建用于扫描的镜像
+          docker build -t n8n-security-test:latest .
+      
+      - name: Trivy漏洞扫描
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'n8n-security-test:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Trivy配置扫描
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-config-results.sarif'
+      
+      - name: Docker Bench安全检查
+        run: |
+          echo "执行Docker安全基准检查..."
+          
+          # 检查Dockerfile最佳实践
+          if [ -f Dockerfile ]; then
+            echo "检查Dockerfile安全配置..."
+            
+            # 检查是否使用root用户
+            if grep -q "USER root" Dockerfile; then
+              echo "::warning::Dockerfile中使用了root用户"
+            fi
+            
+            # 检查是否暴露了敏感端口
+            sensitive_ports=("22" "3389" "5432" "3306" "6379" "27017")
+            for port in "${sensitive_ports[@]}"; do
+              if grep -q "EXPOSE $port" Dockerfile; then
+                echo "::warning::Dockerfile暴露了敏感端口: $port"
+              fi
+            done
+            
+            # 检查是否有ADD指令（推荐使用COPY）
+            if grep -q "^ADD " Dockerfile; then
+              echo "::warning::建议使用COPY替代ADD指令"
+            fi
+            
+            # 检查是否固定了基础镜像版本
+            if grep -q "FROM.*:latest" Dockerfile; then
+              echo "::warning::建议使用固定版本的基础镜像，避免使用latest标签"
+            fi
+          fi
+      
+      - name: 上传扫描结果到GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+      
+      - name: 上传配置扫描结果
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-config-results.sarif
+
+  code-scan:
+    name: 代码安全扫描
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'code' || github.event.inputs.scan_type == '' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 初始化CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-and-quality
+      
+      - name: 自动构建
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: 执行CodeQL分析
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
+      
+      - name: ESLint安全规则检查
+        run: |
+          echo "执行ESLint安全规则检查..."
+          
+          # 安装安全相关的ESLint插件
+          npm install --no-save eslint-plugin-security eslint-plugin-no-secrets
+          
+          # 创建安全检查配置
+          cat > .eslintrc.security.js << 'EOF'
+          module.exports = {
+            plugins: ['security', 'no-secrets'],
+            extends: ['plugin:security/recommended'],
+            rules: {
+              'no-secrets/no-secrets': 'error',
+              'security/detect-object-injection': 'error',
+              'security/detect-non-literal-regexp': 'error',
+              'security/detect-unsafe-regex': 'error',
+              'security/detect-buffer-noassert': 'error',
+              'security/detect-child-process': 'error',
+              'security/detect-disable-mustache-escape': 'error',
+              'security/detect-eval-with-expression': 'error',
+              'security/detect-no-csrf-before-method-override': 'error',
+              'security/detect-non-literal-fs-filename': 'error',
+              'security/detect-non-literal-require': 'error',
+              'security/detect-possible-timing-attacks': 'error',
+              'security/detect-pseudoRandomBytes': 'error'
+            }
+          };
+          EOF
+          
+          # 执行安全检查
+          npx eslint . --config .eslintrc.security.js --ext .js,.ts,.vue --format json --output-file eslint-security-report.json || true
+          
+          # 生成可读报告
+          npx eslint . --config .eslintrc.security.js --ext .js,.ts,.vue > eslint-security-readable.txt || true
+          
+          # 检查是否有安全问题
+          if [ -f eslint-security-report.json ]; then
+            error_count=$(jq '[.[] | select(.errorCount > 0)] | length' eslint-security-report.json)
+            if [ "$error_count" -gt 0 ]; then
+              echo "::error::发现 $error_count 个文件存在安全问题"
+              cat eslint-security-readable.txt
+              exit 1
+            fi
+          fi
+      
+      - name: Semgrep安全扫描
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/javascript
+          generateSarif: "1"
+      
+      - name: 上传代码扫描报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-security-reports
+          path: |
+            eslint-security-report.json
+            eslint-security-readable.txt
+          retention-days: 30
+
+  compliance-check:
+    name: 合规性检查
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secret-scan, docker-scan, code-scan]
+    if: always()
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 下载所有扫描报告
+        uses: actions/download-artifact@v4
+        with:
+          path: security-reports
+      
+      - name: 生成安全合规报告
+        run: |
+          echo "生成安全合规报告..."
+          
+          report_file="security-compliance-report-$(date +%Y%m%d-%H%M%S).md"
+          
+          cat > $report_file << 'EOF'
+          # N8N 自动化平台安全合规报告
+          
+          ## 扫描概览
+          EOF
+          
+          echo "- **扫描时间**: $(date '+%Y-%m-%d %H:%M:%S')" >> $report_file
+          echo "- **扫描类型**: ${{ github.event.inputs.scan_type || 'full' }}" >> $report_file
+          echo "- **触发方式**: ${{ github.event_name }}" >> $report_file
+          echo "- **分支**: ${{ github.ref_name }}" >> $report_file
+          echo "- **提交**: ${{ github.sha }}" >> $report_file
+          echo "" >> $report_file
+          
+          # 检查各个扫描任务的状态
+          cat >> $report_file << 'EOF'
+          ## 扫描结果
+          
+          | 扫描类型 | 状态 | 说明 |
+          |---------|------|------|
+          EOF
+          
+          echo "| 依赖漏洞扫描 | ${{ needs.dependency-scan.result }} | NPM审计和Snyk扫描 |" >> $report_file
+          echo "| 密钥泄露扫描 | ${{ needs.secret-scan.result }} | TruffleHog和GitLeaks扫描 |" >> $report_file
+          echo "| Docker安全扫描 | ${{ needs.docker-scan.result }} | Trivy镜像和配置扫描 |" >> $report_file
+          echo "| 代码安全扫描 | ${{ needs.code-scan.result }} | CodeQL和ESLint安全规则 |" >> $report_file
+          echo "" >> $report_file
+          
+          # 添加详细的扫描结果分析
+          cat >> $report_file << 'EOF'
+          ## 详细分析
+          
+          ### 依赖安全
+          EOF
+          
+          if [ -f security-reports/dependency-security-reports/npm-audit-readable.txt ]; then
+            echo "```" >> $report_file
+            head -20 security-reports/dependency-security-reports/npm-audit-readable.txt >> $report_file
+            echo "```" >> $report_file
+          fi
+          
+          cat >> $report_file << 'EOF'
+          
+          ### 代码安全
+          EOF
+          
+          if [ -f security-reports/code-security-reports/eslint-security-readable.txt ]; then
+            echo "```" >> $report_file
+            head -20 security-reports/code-security-reports/eslint-security-readable.txt >> $report_file
+            echo "```" >> $report_file
+          fi
+          
+          # 添加建议和后续行动
+          cat >> $report_file << 'EOF'
+          
+          ## 安全建议
+          
+          1. **定期更新依赖**: 保持所有依赖包为最新版本
+          2. **密钥管理**: 使用GitHub Secrets管理敏感信息
+          3. **代码审查**: 对所有代码变更进行安全审查
+          4. **容器安全**: 使用最小权限原则配置容器
+          5. **监控告警**: 建立安全事件监控和告警机制
+          
+          ## 合规状态
+          EOF
+          
+          # 计算总体合规状态
+          failed_jobs=0
+          
+          if [ "${{ needs.dependency-scan.result }}" = "failure" ]; then
+            failed_jobs=$((failed_jobs + 1))
+          fi
+          
+          if [ "${{ needs.secret-scan.result }}" = "failure" ]; then
+            failed_jobs=$((failed_jobs + 1))
+          fi
+          
+          if [ "${{ needs.docker-scan.result }}" = "failure" ]; then
+            failed_jobs=$((failed_jobs + 1))
+          fi
+          
+          if [ "${{ needs.code-scan.result }}" = "failure" ]; then
+            failed_jobs=$((failed_jobs + 1))
+          fi
+          
+          if [ $failed_jobs -eq 0 ]; then
+            echo "✅ **合规状态**: 通过 - 所有安全扫描均通过" >> $report_file
+          elif [ $failed_jobs -le 2 ]; then
+            echo "⚠️ **合规状态**: 警告 - $failed_jobs 项扫描未通过，需要关注" >> $report_file
+          else
+            echo "❌ **合规状态**: 失败 - $failed_jobs 项扫描未通过，需要立即处理" >> $report_file
+          fi
+          
+          echo "" >> $report_file
+          echo "---" >> $report_file
+          echo "*报告生成时间: $(date '+%Y-%m-%d %H:%M:%S')*" >> $report_file
+          
+          echo "安全合规报告已生成: $report_file"
+          cat $report_file
+      
+      - name: 上传合规报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-compliance-report
+          path: security-compliance-report-*.md
+          retention-days: 90
+      
+      - name: 发送安全通知
+        if: always()
+        run: |
+          # 计算失败的扫描数量
+          failed_count=0
+          
+          if [ "${{ needs.dependency-scan.result }}" = "failure" ]; then
+            failed_count=$((failed_count + 1))
+          fi
+          
+          if [ "${{ needs.secret-scan.result }}" = "failure" ]; then
+            failed_count=$((failed_count + 1))
+          fi
+          
+          if [ "${{ needs.docker-scan.result }}" = "failure" ]; then
+            failed_count=$((failed_count + 1))
+          fi
+          
+          if [ "${{ needs.code-scan.result }}" = "failure" ]; then
+            failed_count=$((failed_count + 1))
+          fi
+          
+          # 确定通知级别和颜色
+          if [ $failed_count -eq 0 ]; then
+            color="good"
+            message="✅ 安全扫描全部通过"
+            priority="低"
+          elif [ $failed_count -le 2 ]; then
+            color="warning"
+            message="⚠️ 发现 $failed_count 项安全问题"
+            priority="中"
+          else
+            color="danger"
+            message="❌ 发现 $failed_count 项严重安全问题"
+            priority="高"
+          fi
+          
+          # 发送Slack通知
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"attachments\": [{
+                  \"color\": \"$color\",
+                  \"title\": \"N8N安全扫描报告\",
+                  \"text\": \"$message\",
+                  \"fields\": [
+                    {\"title\": \"优先级\", \"value\": \"$priority\", \"short\": true},
+                    {\"title\": \"扫描类型\", \"value\": \"${{ github.event.inputs.scan_type || 'full' }}\", \"short\": true},
+                    {\"title\": \"依赖扫描\", \"value\": \"${{ needs.dependency-scan.result }}\", \"short\": true},
+                    {\"title\": \"密钥扫描\", \"value\": \"${{ needs.secret-scan.result }}\", \"short\": true},
+                    {\"title\": \"Docker扫描\", \"value\": \"${{ needs.docker-scan.result }}\", \"short\": true},
+                    {\"title\": \"代码扫描\", \"value\": \"${{ needs.code-scan.result }}\", \"short\": true},
+                    {\"title\": \"分支\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                    {\"title\": \"运行ID\", \"value\": \"${{ github.run_id }}\", \"short\": true}
+                  ],
+                  \"footer\": \"GitHub Actions Security Scan\",
+                  \"ts\": $(date +%s)
+                }]
+              }" \
+              "${{ secrets.SLACK_WEBHOOK_URL }}" || echo "Slack通知发送失败"
+          fi
+          
+          # 如果有严重安全问题，设置失败状态
+          if [ $failed_count -gt 2 ]; then
+            echo "::error::发现 $failed_count 项严重安全问题，请立即处理"
+            exit 1
+          fi

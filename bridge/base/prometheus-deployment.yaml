@@ -1,0 +1,46 @@
+#! prometheus-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: prometheus
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: prometheus
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: n8n-
+            com.docker.compose.service: prometheus
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: n8n-
+                com.docker.compose.service: prometheus
+                com.docker.compose.network.n8n-network: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: n8n-prometheus
+                  image: prom/prometheus:latest
+                  imagePullPolicy: IfNotPresent
+                  command: [--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --web.console.libraries=/etc/prometheus/console_libraries --web.console.templates=/etc/prometheus/consoles --storage.tsdb.retention.time=200h --web.enable-lifecycle]
+                  ports:
+                    - name: prometheus-9090
+                      containerPort: 9090
+                  volumeMounts:
+                    - name: etc-prometheus-prometheus-yml
+                      mountPath: /etc/prometheus/prometheus.yml
+                    - name: prometheus
+                      mountPath: /prometheus
+            volumes:
+                - name: etc-prometheus-prometheus-yml
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/monitoring/prometheus.yml
+                - name: prometheus
+                  persistentVolumeClaim:
+                    claimName: prometheus-prometheus-data

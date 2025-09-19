@@ -1,0 +1,296 @@
+{
+  "name": "🏝️ 微信公众号内容自动生成器",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "cronExpression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "daily-trigger",
+      "name": "每日内容生成触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 基于日期和Aloha数据生成内容主题\nconst today = new Date();\nconst dayOfWeek = today.getDay(); // 0=Sunday, 1=Monday, etc.\nconst dateStr = today.toISOString().split('T')[0];\n\n// 内容主题策略\nconst contentStrategy = {\n  0: { // Sunday\n    category: \"期望管理\",\n    theme: \"Sunday真实分享\",\n    topics: [\n      \"夏威夷旅游的5个美丽误区\",\n      \"看不到海龟？这些地方成功率更高\",\n      \"Instagram vs 现实：夏威夷真相大揭秘\",\n      \"夏威夷天气真相：不是每天都是晴天\",\n      \"威基基海滩的拥挤真相和替代方案\"\n    ]\n  },\n  1: { // Monday\n    category: \"文化融合\",\n    theme: \"本周文化小贴士\",\n    topics: [\n      \"真正的Aloha精神：不只是你好和再见\",\n      \"新移民必知：夏威夷的10个不成文规矩\",\n      \"如何在夏威夷建立真正的本地友谊\",\n      \"夏威夷本地人的时间观念：Island Time解析\",\n      \"尊重夏威夷文化：游客应该知道的禁忌\"\n    ]\n  },\n  2: { // Tuesday\n    category: \"省钱攻略\",\n    theme: \"Tuesday特价发现\",\n    topics: [\n      \"威基基$8 Mai Tai地图：本地人的秘密清单\",\n      \"檀香山20家本地人最爱的平价美食\",\n      \"免费享受夏威夷：50个不花钱的绝美体验\",\n      \"夏威夷超市购物攻略：如何省下50%\",\n      \"本地人的优惠券秘籍：每月省$200\"\n    ]\n  },\n  3: { // Wednesday\n    category: \"决策助手\",\n    theme: \"中周规划指南\",\n    topics: [\n      \"北岸vs市区住宿：5分钟帮你做决定\",\n      \"夏威夷7日游完美路线：避开游客陷阱\",\n      \"租车还是Uber？夏威夷交通终极指南\",\n      \"选岛指南：大岛、茂宜岛还是欧胡岛？\",\n      \"夏威夷最佳旅游时间：避开人群的秘密\"\n    ]\n  },\n  4: { // Thursday\n    category: \"省钱攻略\",\n    theme: \"Thursday本地推荐\",\n    topics: [\n      \"夏威夷Happy Hour地图：$5鸡尾酒在哪里\",\n      \"本地人的海鲜市场：新鲜又便宜\",\n      \"夏威夷免费活动日历：每周都有惊喜\",\n      \"农夫市场攻略：最新鲜最便宜的选择\",\n      \"夏威夷二手店淘宝：意想不到的好货\"\n    ]\n  },\n  5: { // Friday\n    category: \"文化融合\",\n    theme: \"周末文化活动\",\n    topics: [\n      \"夏威夷传统节日指南：参与而非观看\",\n      \"学习夏威夷语：10个日常必用词汇\",\n      \"夏威夷音乐文化：不只是尤克里里\",\n      \"本地艺术家推荐：支持夏威夷创作\",\n      \"夏威夷传统手工艺：亲手制作纪念品\"\n    ]\n  },\n  6: { // Saturday\n    category: \"省钱攻略\",\n    theme: \"周末省钱攻略\",\n    topics: [\n      \"夏威夷免费海滩指南：避开收费陷阱\",\n      \"周末家庭活动：$50玩转全家\",\n      \"夏威夷徒步路线：免费的绝美风景\",\n      \"本地人的周末市场：便宜又有趣\",\n      \"夏威夷免费博物馆日：文化之旅不花钱\"\n    ]\n  }\n};\n\n// 获取今日内容策略\nconst todayStrategy = contentStrategy[dayOfWeek];\nconst randomTopic = todayStrategy.topics[Math.floor(Math.random() * todayStrategy.topics.length)];\n\n// 基于Aloha项目数据的用户群体定义\nconst targetAudiences = {\n  \"文化融合\": \"新移民和文化敏感的游客\",\n  \"省钱攻略\": \"预算有限的游客和本地居民\", \n  \"决策助手\": \"首次访问夏威夷的游客\",\n  \"期望管理\": \"所有计划访问夏威夷的人群\"\n};\n\n// 痛点映射 (基于我们的Reddit数据分析)\nconst painPoints = {\n  \"文化融合\": \"外来移民与本地文化冲突，担心Aloha精神商业化\",\n  \"省钱攻略\": \"威基基等旅游区消费昂贵，本地居民生活成本上升\",\n  \"决策助手\": \"游客在住宿地点选择上缺乏本地化建议\",\n  \"期望管理\": \"游客期望与现实存在差距，如野生动物观察失望\"\n};\n\n// 数据洞察 (基于Reddit分析结果)\nconst dataInsights = {\n  \"文化融合\": \"Reddit r/Hawaii上'Hawaii is not the same'帖子获得753点赞259评论，反映本地人对文化变化的担忧\",\n  \"省钱攻略\": \"威基基Mai Tai价格从10年前的$5涨到现在难以找到经济选择，用户强烈需求价格透明\",\n  \"决策助手\": \"'Considering staying on the north shore?'等帖子显示首次游客在住宿选择上的困扰\",\n  \"期望管理\": \"'Was hoping to see a turtle'帖子732点赞，显示期望管理的重要性\"\n};\n\nreturn [{\n  json: {\n    date: dateStr,\n    dayOfWeek: dayOfWeek,\n    category: todayStrategy.category,\n    theme: todayStrategy.theme,\n    topic: randomTopic,\n    targetAudience: targetAudiences[todayStrategy.category],\n    painPoint: painPoints[todayStrategy.category],\n    dataInsights: dataInsights[todayStrategy.category],\n    publishTime: \"08:00\", // 北京时间早上8点\n    contentType: \"图文消息\"\n  }\n}];"
+      },
+      "id": "content-planner",
+      "name": "智能内容策划",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "你是一位在夏威夷生活了10年的本地生活专家，专门为中文读者创作夏威夷本地生活内容。你的文章风格亲切友好，实用性强，富有本地文化特色。\n\n请基于提供的信息生成一篇微信公众号文章，要求：\n1. 标题吸引人，包含合适的emoji\n2. 开头引人入胜，有代入感\n3. 内容实用，有具体建议和数据\n4. 融入本地文化元素和真实故事\n5. 语言亲切，避免说教\n6. 字数控制在1500-2000字\n7. 包含3-5个小标题，用##格式\n8. 结尾有明确的行动号召\n9. 适当使用emoji增加可读性\n\n输出格式：\n标题: [包含emoji的吸引人标题]\n\n正文: [完整文章内容，包含小标题]"
+            },
+            {
+              "role": "user",
+              "content": "请基于以下信息生成文章：\n\n主题: {{ $json.topic }}\n目标用户: {{ $json.targetAudience }}\n痛点: {{ $json.painPoint }}\n数据支持: {{ $json.dataInsights }}\n内容分类: {{ $json.category }}\n发布主题: {{ $json.theme }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "content-generator",
+      "name": "AI内容生成器",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "generate",
+        "model": "dall-e-3",
+        "prompt": "Create a warm, inviting cover image for a WeChat article about Hawaii local life. The article topic is: {{ $('content-generator').item.json.topic }}. Style: Bright, tropical, friendly, authentic Hawaiian atmosphere. Elements: Ocean, palm trees, local culture, warm sunset colors. Mood: Welcoming, peaceful, local lifestyle. Colors: Ocean blue, sunset orange, tropical green, warm yellow. Size: 1024x1024. No text overlay needed.",
+        "options": {
+          "quality": "standard",
+          "size": "1024x1024",
+          "style": "natural"
+        }
+      },
+      "id": "image-generator",
+      "name": "封面图片生成",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.3,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析AI生成的内容并格式化\nconst aiContent = $input.first().json.choices[0].message.content;\n\n// 提取标题和正文\nconst lines = aiContent.split('\\n');\nlet title = '';\nlet content = '';\nlet isContent = false;\n\nfor (const line of lines) {\n  if (line.startsWith('标题:')) {\n    title = line.replace('标题:', '').trim();\n  } else if (line.startsWith('正文:')) {\n    isContent = true;\n    continue;\n  } else if (isContent && line.trim()) {\n    content += line + '\\n';\n  }\n}\n\n// 如果没有找到标题标记，使用第一行作为标题\nif (!title && lines.length > 0) {\n  title = lines[0].replace(/^#+\\s*/, '').trim();\n  content = lines.slice(1).join('\\n');\n}\n\n// 清理内容格式\ncontent = content.trim();\n\n// 添加文章尾部\nconst footer = `\\n\\n---\\n\\n🏝️ **关于Aloha夏威夷生活**\\n\\n我们致力于为华人朋友提供最真实、最实用的夏威夷本地生活信息。如果这篇文章对你有帮助，请点赞分享，让更多朋友受益！\\n\\n💬 **有问题想咨询？**\\n在评论区留言，我们会及时回复！\\n\\n🔔 **不想错过更多干货？**\\n关注我们，每天为你带来夏威夷生活的新发现！\\n\\n#夏威夷生活 #本地攻略 #Aloha精神`;\n\ncontent += footer;\n\n// 获取当前时间信息\nconst now = new Date();\nconst publishTime = new Date();\npublishTime.setHours(8, 0, 0, 0); // 设置为早上8点发布\n\n// 如果当前时间已经过了8点，则设置为明天8点\nif (now.getHours() >= 8) {\n  publishTime.setDate(publishTime.getDate() + 1);\n}\n\nreturn [{\n  json: {\n    title: title,\n    content: content,\n    publishTime: publishTime.toISOString(),\n    category: $('content-planner').item.json.category,\n    theme: $('content-planner').item.json.theme,\n    targetAudience: $('content-planner').item.json.targetAudience,\n    wordCount: content.length,\n    status: 'ready_for_review',\n    createdAt: now.toISOString()\n  }\n}];"
+      },
+      "id": "content-formatter",
+      "name": "内容格式化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.weixin.qq.com/cgi-bin/material/add_news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $vars.WECHAT_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "articles",
+              "value": "=[{\"title\": \"{{ $json.title }}\", \"author\": \"Aloha夏威夷生活\", \"digest\": \"{{ $json.content.substring(0, 100) }}...\", \"content\": \"{{ $json.content.replace(/\"/g, '\\\\\"') }}\", \"content_source_url\": \"\", \"thumb_media_id\": \"{{ $('image-generator').item.json.data[0].media_id }}\", \"show_cover_pic\": 1, \"need_open_comment\": 1, \"only_fans_can_comment\": 0}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wechat-upload",
+      "name": "微信素材上传",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "wechat-api",
+          "name": "微信API认证"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "upload-success",
+              "leftValue": "={{ $json.errcode }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "upload-check",
+      "name": "上传状态检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "wechat_articles",
+        "columns": "title, content, category, theme, target_audience, word_count, media_id, status, publish_time, created_at",
+        "additionalFields": {}
+      },
+      "id": "database-save",
+      "name": "数据库保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1560, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aloha",
+          "name": "Aloha PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "telegram-chat-id",
+        "text": "✅ **微信公众号内容生成成功！**\\n\\n📝 **文章信息**:\\n• 标题: {{ $('content-formatter').item.json.title }}\\n• 分类: {{ $('content-formatter').item.json.category }}\\n• 字数: {{ $('content-formatter').item.json.wordCount }}\\n• 计划发布: {{ new Date($('content-formatter').item.json.publishTime).toLocaleString('zh-CN') }}\\n\\n📊 **素材状态**:\\n• 图文素材ID: {{ $('wechat-upload').item.json.media_id }}\\n• 上传状态: 成功\\n\\n⏰ 系统将在预定时间自动发布",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "success-notification",
+      "name": "成功通知",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-aloha",
+          "name": "Aloha Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "每日内容生成触发器": {
+      "main": [
+        [
+          {
+            "node": "智能内容策划",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "智能内容策划": {
+      "main": [
+        [
+          {
+            "node": "AI内容生成器",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "封面图片生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI内容生成器": {
+      "main": [
+        [
+          {
+            "node": "内容格式化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容格式化": {
+      "main": [
+        [
+          {
+            "node": "微信素材上传",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "微信素材上传": {
+      "main": [
+        [
+          {
+            "node": "上传状态检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "上传状态检查": {
+      "main": [
+        [
+          {
+            "node": "数据库保存",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "成功通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-04T14:00:00.000Z",
+      "updatedAt": "2025-01-04T14:00:00.000Z",
+      "id": "wechat-automation",
+      "name": "微信自动化"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-04T14:00:00.000Z",
+  "versionId": "1"
+}

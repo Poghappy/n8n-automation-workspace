@@ -1,0 +1,117 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "系统指标监控",
+    "tags": ["system", "metrics", "database", "redis"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "PostgreSQL 连接数",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{datname=\"n8n\"}",
+            "refId": "A",
+            "legendFormat": "活跃连接"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "yAxes": [
+          {
+            "label": "连接数",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "PostgreSQL 数据库大小",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_database_size_bytes{datname=\"n8n\"}",
+            "refId": "A",
+            "legendFormat": "数据库大小"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "yAxes": [
+          {
+            "label": "字节",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Redis 内存使用",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "redis_memory_used_bytes",
+            "refId": "A",
+            "legendFormat": "已使用内存"
+          },
+          {
+            "expr": "redis_memory_max_bytes",
+            "refId": "B",
+            "legendFormat": "最大内存"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "yAxes": [
+          {
+            "label": "字节",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Redis 命令执行率",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(redis_commands_processed_total[5m])",
+            "refId": "A",
+            "legendFormat": "命令/秒"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "yAxes": [
+          {
+            "label": "命令/秒",
+            "min": 0
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}

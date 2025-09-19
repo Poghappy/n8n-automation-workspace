@@ -1,0 +1,112 @@
+# ========================================
+# N8N 自动化工作流系统 Docker Compose 配置文件
+# ========================================
+# 
+# 这个文件定义了完整的 N8N 自动化系统的容器编排配置
+# 包含以下核心服务：
+# 1. N8N 工作流引擎 - 主要的自动化执行引擎
+# 2. PostgreSQL 数据库 - 存储工作流、执行历史等数据
+# 3. Redis 缓存 - 提供缓存和队列功能
+# 4. Nginx 反向代理 - 处理HTTP请求和负载均衡
+# 
+# 学习要点：
+# - Docker Compose 服务定义语法
+# - 环境变量的使用和配置
+# - 容器间网络通信
+# - 数据持久化和卷挂载
+# - 健康检查和重启策略
+# ========================================
+
+version: '3.8'  # Docker Compose 文件格式版本
+
+services:
+  # ========================================
+  # N8N 工作流引擎服务
+  # ========================================
+  # 这是系统的核心组件，负责执行自动化工作流
+  n8n:
+    image: n8nio/n8n:latest  # 使用官方最新镜像
+    container_name: n8n-automation  # 容器名称
+    restart: unless-stopped  # 重启策略：除非手动停止，否则总是重启
+    
+    # 端口映射 - 将容器内部端口映射到主机端口
+    ports:
+      - "5678:5678"  # N8N Web界面端口
+    
+    # 环境变量配置 - 通过环境变量配置N8N的各种功能
+    environment:
+      # ========================================
+      # 基础网络配置
+      # ========================================
+      # N8N服务的主机名配置，支持子域名
+      - N8N_HOST=${SUBDOMAIN:-n8n}.${DOMAIN_NAME:-localhost}
+      # N8N服务监听端口
+      - N8N_PORT=5678
+      # 协议类型：http 或 https
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      # Webhook回调URL，用于接收外部系统的回调
+      - WEBHOOK_URL=${N8N_PROTOCOL:-http}://${SUBDOMAIN:-n8n}.${DOMAIN_NAME:-localhost}/
+      
+      # ========================================
+      # 用户认证配置
+      # ========================================
+      # 启用基础认证（用户名密码登录）
+      - N8N_BASIC_AUTH_ACTIVE=true
+      # 管理员用户名，默认为admin
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      # 管理员密码，从环境变量读取
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      
+      # ========================================
+      # 数据库连接配置
+      # ========================================
+      # 数据库类型：使用PostgreSQL
+      - DB_TYPE=postgresdb
+      # 数据库服务器地址（容器名）
+      - DB_POSTGRESDB_HOST=postgres
+      # 数据库端口
+      - DB_POSTGRESDB_PORT=5432
+      # 数据库名称
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-n8n}
+      # 数据库用户名
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-n8n}
+      # 数据库密码
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      
+      # ========================================
+      # 安全加密配置
+      # ========================================
+      # 数据加密密钥，用于加密敏感数据
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # JWT令牌签名密钥，用于用户会话管理
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET}
+      # 启用JWT认证
+      - N8N_JWT_AUTH_ACTIVE=true
+      # JWT认证头名称
+      - N8N_JWT_AUTH_HEADER=authorization
+      # JWT认证头值前缀
+      - N8N_JWT_AUTH_HEADER_VALUE_PREFIX=Bearer
+      
+      # ========================================
+      # 工作流执行配置
+      # ========================================
+      # 执行进程模式：main表示在主进程中执行
+      - EXECUTIONS_PROCESS=main
+      # 执行模式：regular表示常规执行模式
+      - EXECUTIONS_MODE=regular
+      # 单个工作流执行超时时间（秒）
+      - EXECUTIONS_TIMEOUT=${N8N_EXECUTIONS_TIMEOUT:-3600}
+      # 最大执行超时时间（秒）
+      - EXECUTIONS_TIMEOUT_MAX=${N8N_EXECUTIONS_TIMEOUT_MAX:-7200}
+      # 错误时保存执行数据
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      # 成功时保存执行数据
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      # 执行过程中不保存进度数据（节省存储）
+      - EXECUTIONS_DATA_SAVE_ON_PROGRESS=false
+      # 保存手动执行的数据
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+      # 启用执行数据清理
+      - EXECUTIONS_DATA_PRUNE=true
+      # 执行数据保留天数（336小时=14天）
+      - EXECUTIONS_DATA_MAX_AGE=336

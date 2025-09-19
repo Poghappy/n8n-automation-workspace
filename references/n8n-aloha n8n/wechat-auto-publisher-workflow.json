@@ -1,0 +1,517 @@
+{
+  "name": "🚀 微信公众号自动发布器",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "cronExpression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "publish-trigger",
+      "name": "发布时间触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "wechat_articles",
+        "where": {
+          "conditions": [
+            {
+              "column": "status",
+              "operator": "equal",
+              "value": "ready_for_review"
+            },
+            {
+              "column": "publish_time",
+              "operator": "smallerEqual",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "publish_time",
+              "direction": "ASC"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "id": "get-pending-article",
+      "name": "获取待发布文章",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aloha",
+          "name": "Aloha PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-article",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-article-exists",
+      "name": "检查是否有文章",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.weixin.qq.com/cgi-bin/token",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credential"
+            },
+            {
+              "name": "appid",
+              "value": "={{ $vars.WECHAT_APP_ID }}"
+            },
+            {
+              "name": "secret",
+              "value": "={{ $vars.WECHAT_APP_SECRET }}"
+            }
+          ]
+        }
+      },
+      "id": "get-access-token",
+      "name": "获取访问令牌",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.weixin.qq.com/cgi-bin/message/mass/sendall",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('get-access-token').item.json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "{\"is_to_all\": true}"
+            },
+            {
+              "name": "mpnews",
+              "value": "{\"media_id\": \"{{ $('get-pending-article').item.json.media_id }}\"}"
+            },
+            {
+              "name": "msgtype",
+              "value": "mpnews"
+            }
+          ]
+        }
+      },
+      "id": "publish-article",
+      "name": "发布文章",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "publish-success",
+              "leftValue": "={{ $json.errcode }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-publish-result",
+      "name": "检查发布结果",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "wechat_articles",
+        "updateKey": "id",
+        "columns": "status, published_at, msg_id",
+        "additionalFields": {}
+      },
+      "id": "update-article-status",
+      "name": "更新文章状态",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "chatId": "telegram-chat-id",
+        "text": "🎉 **微信公众号文章发布成功！**\\n\\n📝 **文章信息**:\\n• 标题: {{ $('get-pending-article').item.json.title }}\\n• 分类: {{ $('get-pending-article').item.json.category }}\\n• 发布时间: {{ new Date().toLocaleString('zh-CN') }}\\n\\n📊 **发布结果**:\\n• 消息ID: {{ $('publish-article').item.json.msg_id }}\\n• 发送状态: 成功\\n• 预计到达: 全部关注用户\\n\\n🔗 **后续操作**:\\n• 30分钟后开始数据统计\\n• 24小时后生成效果报告",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "success-notification",
+      "name": "发布成功通知",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-aloha",
+          "name": "Aloha Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "wechat_articles",
+        "updateKey": "id",
+        "columns": "status, error_message",
+        "additionalFields": {}
+      },
+      "id": "update-error-status",
+      "name": "更新错误状态",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "telegram-chat-id",
+        "text": "❌ **微信公众号发布失败！**\\n\\n📝 **文章信息**:\\n• 标题: {{ $('get-pending-article').item.json.title }}\\n• 分类: {{ $('get-pending-article').item.json.category }}\\n\\n🚨 **错误信息**:\\n• 错误代码: {{ $('publish-article').item.json.errcode }}\\n• 错误描述: {{ $('publish-article').item.json.errmsg }}\\n\\n🔧 **建议操作**:\\n• 检查access_token是否有效\\n• 确认素材ID是否正确\\n• 查看API调用限额\\n• 手动重试发布",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "error-notification",
+      "name": "发布失败通知",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 800],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-aloha",
+          "name": "Aloha Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "cronExpression": "0 */2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "stats-trigger",
+      "name": "数据统计触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 1000]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "wechat_articles",
+        "where": {
+          "conditions": [
+            {
+              "column": "status",
+              "operator": "equal",
+              "value": "published"
+            },
+            {
+              "column": "published_at",
+              "operator": "greaterEqual",
+              "value": "={{ new Date(Date.now() - 24*60*60*1000).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "get-published-articles",
+      "name": "获取已发布文章",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 1000],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aloha",
+          "name": "Aloha PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.weixin.qq.com/datacube/getarticletotal",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $vars.WECHAT_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "begin_date",
+              "value": "={{ new Date(Date.now() - 24*60*60*1000).toISOString().split('T')[0].replace(/-/g, '') }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ new Date().toISOString().split('T')[0].replace(/-/g, '') }}"
+            }
+          ]
+        }
+      },
+      "id": "get-article-stats",
+      "name": "获取文章统计",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 1000]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理统计数据并更新数据库\nconst articles = $('get-published-articles').all();\nconst stats = $input.first().json.list || [];\n\nconst updates = [];\n\nfor (const article of articles) {\n  // 查找对应的统计数据\n  const stat = stats.find(s => s.msgid === article.json.msg_id);\n  \n  if (stat) {\n    updates.push({\n      id: article.json.id,\n      read_count: stat.int_page_read_count || 0,\n      like_count: stat.like_count || 0,\n      share_count: stat.share_count || 0,\n      comment_count: stat.comment_count || 0,\n      updated_at: new Date().toISOString()\n    });\n  }\n}\n\nreturn updates.map(update => ({ json: update }));"
+      },
+      "id": "process-stats",
+      "name": "处理统计数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 1000]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "wechat_articles",
+        "updateKey": "id",
+        "columns": "read_count, like_count, share_count, comment_count, updated_at"
+      },
+      "id": "update-stats",
+      "name": "更新统计数据",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 1000],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-aloha",
+          "name": "Aloha PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "发布时间触发器": {
+      "main": [
+        [
+          {
+            "node": "获取待发布文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取待发布文章": {
+      "main": [
+        [
+          {
+            "node": "检查是否有文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查是否有文章": {
+      "main": [
+        [
+          {
+            "node": "获取访问令牌",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取访问令牌": {
+      "main": [
+        [
+          {
+            "node": "发布文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "发布文章": {
+      "main": [
+        [
+          {
+            "node": "检查发布结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查发布结果": {
+      "main": [
+        [
+          {
+            "node": "更新文章状态",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "发布成功通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "更新错误状态",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "发布失败通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据统计触发器": {
+      "main": [
+        [
+          {
+            "node": "获取已发布文章",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取已发布文章": {
+      "main": [
+        [
+          {
+            "node": "获取文章统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取文章统计": {
+      "main": [
+        [
+          {
+            "node": "处理统计数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理统计数据": {
+      "main": [
+        [
+          {
+            "node": "更新统计数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-04T14:30:00.000Z",
+      "updatedAt": "2025-01-04T14:30:00.000Z",
+      "id": "wechat-publisher",
+      "name": "微信发布器"
+    }
+  ],
+  "triggerCount": 2,
+  "updatedAt": "2025-01-04T14:30:00.000Z",
+  "versionId": "1"
+}

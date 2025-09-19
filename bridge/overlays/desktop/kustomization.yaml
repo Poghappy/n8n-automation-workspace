@@ -1,0 +1,26 @@
+#! kustomization.yaml
+# Generated code, do not edit
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+    - ../../base
+patches:
+    - path: ai-agent-system-ai_agent_data-persistentVolumeClaim.yaml
+    - path: ai-agent-system-service.yaml
+    - path: elasticsearch-elasticsearch_data-persistentVolumeClaim.yaml
+    - path: elasticsearch-service.yaml
+    - path: grafana-grafana_data-persistentVolumeClaim.yaml
+    - path: grafana-service.yaml
+    - path: huoniao-portal-service.yaml
+    - path: kibana-service.yaml
+    - path: n8n-n8n_data-persistentVolumeClaim.yaml
+    - path: n8n-service.yaml
+    - path: nginx-service.yaml
+    - path: postgres-postgres_data-persistentVolumeClaim.yaml
+    - path: postgres-service.yaml
+    - path: prometheus-prometheus_data-persistentVolumeClaim.yaml
+    - path: prometheus-service.yaml
+    - path: rabbitmq-rabbitmq_data-persistentVolumeClaim.yaml
+    - path: rabbitmq-service.yaml
+    - path: redis-redis_data-persistentVolumeClaim.yaml
+    - path: redis-service.yaml

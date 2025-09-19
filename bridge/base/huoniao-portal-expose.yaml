@@ -1,0 +1,18 @@
+#! huoniao-portal-expose.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: huoniao-portal
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: huoniao-portal
+spec:
+    selector:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: huoniao-portal
+    ports:
+        - name: huoniao-port-80
+          port: 80
+          targetPort: huoniao-port-80

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=EDGE">
+	<title>基本信息</title>
+	<meta name="keywords" content="{#$cfg_keywords#}">
+	<meta name="description" content="{#$cfg_description#}">
+	<link rel="stylesheet" type="text/css" media="all" href="{#$cfg_staticPath#}css/core/base.css?v={#$cfg_staticVersion#}" />
+	<!-- <link rel="stylesheet" href="{#$cfg_staticPath#}/css/admin/bootstrap.css?v={#$cfg_staticVersion#}"> -->
+	<link rel="stylesheet" href="{#$templets_skin#}css/pub_loupan.css?v={#$cfg_staticVersion#}">
+	<link rel="stylesheet" href="{#$templets_skin#}css/base_info.css?v={#$cfg_staticVersion#}">
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/core/jquery-1.8.3.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/vue.min.js?v={#$cfg_staticVersion#}"></script>
+	<script type="text/javascript">
+		var masterDomain = '{#$cfg_basehost#}',
+			staticPath = '{#$cfg_staticPath#}';
+		var hideFileUrl = '{#$cfg_hideUrl#}';
+		var cookiePre = '{#$cfg_cookiePre#}',
+			cfg_clihost = '{#$cfg_clihost#}';
+		var templets = '{#$templets_skin#}';
+
+		var buildtypenames = ['低层', '高层', '小高层', '联排别墅', '公寓']; //建筑类型
+		// var salestatenames = ['新盘待售','在售','尾盘','售罄']; //销售状态
+		// var existingnames = ['现房','期房']; //销售状态
+		var salestate = 0, //销售状态
+			existing = 0, //楼盘状态
+			buildtype = []; //物业类型
+		var thumbSize = '{#$thumbSize#}',
+			thumbType = "{#$thumbType#}", //缩略图配置
+			addrid = '{#$addrid#}',
+			addrListArr = '{#$addrListArr#}',
+			mapCity = "{#$mapCity#}",
+			subwayCity = 0;
+
+		var peitaoList = [];
+		var imglist = {"list1": '{#$imglist#}',};
+
+		var id = '{#$id#}';
+		var loupanid = '{#$loupanid#}';
+		var modelType = 'house';
+	</script>
+</head>
+
+<body class="w1200">
+	<div id="page">
+		<!-- 头部 -->
+		{#include file="top.html"#}
+		<div class="conbox">
+			{#include file="left.html"#}
+			<!-- 右侧 -->
+			<div class="right_box">
+				<div class="rConBox">
+					<h3>{#if $id#}编辑户型{#else#}新增户型{#/if#}</h3>
+					<div class="formbox huxingFormbox">
+						<form action="" id="form">
+							<div class="inpbox required">
+								<label><em>* </em>户型名称</label>
+								<div class="inp_div">
+									<div class="inp "><input type="text" name="title" value="{#$hx_title#}" placeholder="请输入户型名称" data-regex=".{3,60}"></div>
+								</div>
+							</div>
+
+							<div class="inpbox required">
+								<label><em>* </em>户型缩略图</label>
+								<div class="inp_div img_upload listImgBox">
+									<input type="hidden" name="litpic" class="imglist-hidden" placeholder="请上传户型缩略图"/>
+									<div class="imgbox">
+										<div class="upload_btn filePicker uploadinp {#if $hx_litpic != ""#}hide{#/if#}" id="filePicker1" data-type="thumb"  data-count="1" data-size="{#$thumbSize#}" data-imglist="">
+											<s></s>
+											<p>点击上传图片</p>
+										</div>
+										<div class="imgShow">
+											<ul id="listSection1" class="listSection thumblist">
+												{#if $hx_litpicsoure#}
+												<li id="WU_FILE_listpic1" class="pubitem">
+													<img src="{#$hx_litpic#}" data-val="{#$hx_litpicsoure#}" data-url="h{#$hx_litpic#}">
+													<a class="reupload li-rm" href="javascript:;">重新上传</a>
+												</li>
+												{#/if#}
+											</ul>
+											<!-- <div class="reupload">重新上传</div> -->
+										</div>
+									</div>
+									<p class="tip">户型缩略图片，推荐尺寸500像素*360像素</p>
+								</div>
+							</div>
+
+							<div class="inpbox" data-placeholder="请选择房型">
+								<label><em>* </em>房型</label>
+								<ul class="inp_div inline_inp sel_inp">
+									<li>
+											<div class="inp selecte_box">
+												<select class="" name="room" >
+													<option value="0" selected="selected" style="color:#B1B7CC">请选择</option>
+													<option v-for="i in 10" :value="i" :selected="{#$hx_room|default:0#}==i">{{i}}</option>
+												</select>
+												<s></s></div>
+											<span class="dw">室</span>
+									</li>
+
+									<li>
+											<div class="inp selecte_box">
+												<select class="" name="hall">
+													<option value="0" selected="selected" style="color:#B1B7CC">请选择</option>
+													<option v-for="i in 10" :value="i" :selected="{#$hx_hall|default:0#}==i">{{i}}</option>
+												</select>
+												<s></s></div>
+											<span class="dw">厅</span>
+									</li>
+
+									<li>
+											<div class="inp selecte_box">
+												<select class="" name="guard">
+													<option value="0" selected="selected" style="color:#B1B7CC">请选择</option>
+													<option v-for="i in 10" :value="i" :selected="{#$hx_guard|default:0#}==i">{{i}}</option>
+												</select>
+												<s></s></div>
+											<span class="dw">卫</span>
+									</li>
+								</ul>
+							</div>
+
+							<div class="inpbox required picsInp">
+								<label><em>* </em>上传图片</label>
+								<div class="inp_div img_upload listImgBox pics_upload">
+									<input type="hidden" name="imglist" value="" class="imglist-hidden" placeholder="请上传户型图"/>
+									<div class="imgbox">
+										<ul id="listSection2" class="listSection thumblist fn-clear" data-type="before">
+											{#foreach from=$hx_imglist item=imglist key=i#}
+											<li class="pubitem fn-clear" id="WU_FILE_is_{#$i#}">
+												<a class="li-rm" href="javascript:;">×</a>
+												<div class="li-thumb" style="display: block;">
+													<img src="{#$imglist.path#}" data-val="{#$imglist.picsoure#}" data-url="{#$imglist.path#}">
+												</div>
+											</li>
+											{#/foreach#}
+											<div class="upload_btn filePicker uploadinp img_upload" id="filePicker2" data-type="desc"  data-count="10" data-size="{#$thumbSize#}" data-imglist="">
+												<s></s>
+												<p>点击上传图片</p>
+											</div>
+										</ul>
+
+									</div>
+									<p class="tip">上传户型图片，推荐尺寸500像素*360像素</p>
+								</div>
+							</div>
+
+							<div class="inpbox required">
+								<label><em>* </em>面积</label>
+								<div class="inp_div xs_inp">
+										<div class="inp ">
+											<input type="text" name="area" value="{#$hx_area#}" placeholder="请输入面积">
+										</div>
+										<span class="dw">㎡</span>
+								</div>
+							</div>
+							<div class="inpbox required" data-placeholder="请选择朝向">
+								<label><em>* </em>朝向</label>
+								<div class="inp_div xs_inp selecte_box sel_inp">
+										<div class="inp ">
+											<select class="" name="direction">
+												<option value="0" {#if $hx_directionid == 0#} selected="selected" {#/if#} style="color:#B1B7CC">请选择</option>
+												{#loop service="house" action="item" return="item" type="4"#}
+												<option value="{#$item.id#}" {#if $hx_directionid == $item.id#} selected="selected" {#/if#}>{#$item.typename#}</option>
+												{#/loop#}
+											</select>
+											<s></s>
+										</div>
+								</div>
+							</div>
+
+							<div class="inpbox required">
+								<label><em>* </em>层高</label>
+								<div class="inp_div xs_inp ">
+										<div class="inp ">
+											<input type="text" name="high" value="{#$hx_high#}"  placeholder="请输入层高">
+										</div>
+										<span class="dw">m</span>
+								</div>
+							</div>
+							<div class="inpbox required">
+								<label><em>* </em>价格</label>
+								<div class="inp_div xs_inp">
+										<div class="inp ">
+											<input type="text" name="price" value="{#$hx_price#}" placeholder="请输入价格">
+										</div>
+										<span class="dw">万{#echoCurrency type="short"#}</span>
+								</div>
+							</div>
+
+							<div class="inpbox required">
+								<label><em>* </em>户型解析</label>
+								<div class="inp_div">
+										<div class="inp_textarea xs_inp">
+											<textarea name="note" placeholder="请输入该户型详细解析">{#$hx_note#}</textarea>
+										</div>
+
+								</div>
+							</div>
+							<a href="javascript:;" class="submit huxing_sub" @click="submit">确认提交</a>
+							{#if $id#}
+							<a href="javascript:;" class="del huxing_sub" @click="delNow = 1">删除户型</a>
+							{#/if#}
+						</form>
+						<div class="loading" v-show="loading"><s></s></div>
+					</div>
+				</div>
+			</div>
+			<div class="pop_mask" ></div>
+			<div class="Popbox confirm_del" @click="delhuxing" ><h3>确定删除该户型？</h3> <p>一经删除，不可恢复，请谨慎操作</p> <div class="btn_group"><a href="javascript:;" class="sure_del">确认删除</a><a href="javascript:;" class="cancel_del" @click="delNow = 0">取消删除</a></div></div>
+			<div class="foot">
+				<div class="foot-bottom">
+					<div class="bottom wrap">
+						版权所有 © {#$smarty.now|date_format:'%Y'#} {#$cfg_shortname#}. All rights reserved.<br />
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div>{#$cfg_statisticscode#}</div>
+
+</body>
+
+<script type="text/javascript" src="{#$templets_skin#}js/publicUpload_v2.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$templets_skin#}js/public.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$templets_skin#}js/add_huxing.js?v={#$cfg_staticVersion#}"></script>
+<script type='text/javascript' src='{#$cfg_basehost#}/include/json.php?action=lang'></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/publicAddr.js?v={#$cfg_staticVersion#}"></script>
+<script type="text/javascript" src="{#$cfg_staticPath#}js/vue/axios.min.js?v={#$cfg_staticVersion#}"></script>
+
+</html>

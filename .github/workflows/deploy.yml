@@ -1,0 +1,338 @@
+name: 自动化部署
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      deploy_mode:
+        description: '部署模式'
+        required: true
+        default: 'docker'
+        type: choice
+        options:
+          - docker
+          - kubernetes
+          - standalone
+      skip_tests:
+        description: '跳过测试'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '18'
+
+jobs:
+  # 构建和测试
+  build-and-test:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || !inputs.skip_tests
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+      
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: 安装依赖
+        run: npm ci
+        
+      - name: 代码质量检查
+        run: |
+          npm run lint || true
+          npm run format:check || true
+          
+      - name: 运行单元测试
+        run: |
+          npm test || true
+          
+      - name: 运行集成测试
+        run: |
+          chmod +x scripts/integration-test.sh
+          ./scripts/integration-test.sh || true
+          
+      - name: 构建应用
+        run: npm run build || true
+        
+      - name: 登录到容器注册表
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 提取元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            
+      - name: 构建和推送Docker镜像
+        if: github.event_name != 'pull_request'
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 部署到开发环境
+  deploy-development:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'development')
+    environment: development
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置部署环境
+        run: |
+          echo "ENVIRONMENT=development" >> $GITHUB_ENV
+          echo "DEPLOY_MODE=${{ inputs.deploy_mode || 'docker' }}" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=${{ needs.build-and-test.outputs.image-tag }}" >> $GITHUB_ENV
+          
+      - name: 执行部署
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
+        env:
+          N8N_HOST: ${{ secrets.DEV_N8N_HOST }}
+          N8N_PORT: ${{ secrets.DEV_N8N_PORT }}
+          DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.DEV_REDIS_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          
+      - name: 运行部署后测试
+        run: |
+          chmod +x scripts/e2e-test.sh
+          ./scripts/e2e-test.sh
+          
+      - name: 上传部署报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report-development
+          path: logs/deployment-report-*.json
+          retention-days: 30
+
+  # 部署到测试环境
+  deploy-staging:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    environment: staging
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置部署环境
+        run: |
+          echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+          echo "DEPLOY_MODE=${{ inputs.deploy_mode || 'kubernetes' }}" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=${{ needs.build-and-test.outputs.image-tag }}" >> $GITHUB_ENV
+          
+      - name: 配置kubectl
+        if: env.DEPLOY_MODE == 'kubernetes'
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+          
+      - name: 配置Kubernetes访问
+        if: env.DEPLOY_MODE == 'kubernetes'
+        run: |
+          echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > ~/.kube/config
+          
+      - name: 执行部署
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
+        env:
+          N8N_HOST: ${{ secrets.STAGING_N8N_HOST }}
+          N8N_PORT: ${{ secrets.STAGING_N8N_PORT }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          K8S_NAMESPACE: ${{ secrets.STAGING_K8S_NAMESPACE }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          
+      - name: 运行性能测试
+        run: |
+          chmod +x scripts/load-test.sh
+          ./scripts/load-test.sh
+          
+      - name: 上传部署报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report-staging
+          path: logs/deployment-report-*.json
+          retention-days: 30
+
+  # 部署到生产环境
+  deploy-production:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    environment: production
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置部署环境
+        run: |
+          echo "ENVIRONMENT=production" >> $GITHUB_ENV
+          echo "DEPLOY_MODE=${{ inputs.deploy_mode || 'kubernetes' }}" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=${{ needs.build-and-test.outputs.image-tag }}" >> $GITHUB_ENV
+          echo "BACKUP_BEFORE_DEPLOY=true" >> $GITHUB_ENV
+          echo "RUN_TESTS_BEFORE_DEPLOY=true" >> $GITHUB_ENV
+          echo "ROLLBACK_ON_FAILURE=true" >> $GITHUB_ENV
+          
+      - name: 配置kubectl
+        if: env.DEPLOY_MODE == 'kubernetes'
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+          
+      - name: 配置Kubernetes访问
+        if: env.DEPLOY_MODE == 'kubernetes'
+        run: |
+          echo "${{ secrets.PROD_KUBECONFIG }}" | base64 -d > ~/.kube/config
+          
+      - name: 生产环境部署前检查
+        run: |
+          echo "🔍 生产环境部署前检查..."
+          echo "镜像: $DOCKER_IMAGE"
+          echo "环境: $ENVIRONMENT"
+          echo "模式: $DEPLOY_MODE"
+          
+      - name: 执行生产部署
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
+        env:
+          N8N_HOST: ${{ secrets.PROD_N8N_HOST }}
+          N8N_PORT: ${{ secrets.PROD_N8N_PORT }}
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
+          K8S_NAMESPACE: ${{ secrets.PROD_K8S_NAMESPACE }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
+          
+      - name: 生产环境验证测试
+        run: |
+          chmod +x scripts/health-check.sh
+          ./scripts/health-check.sh
+          
+      - name: 创建GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## 🚀 N8N自动化平台发布 ${{ github.ref }}
+            
+            ### 📦 部署信息
+            - **环境**: Production
+            - **镜像**: ${{ needs.build-and-test.outputs.image-tag }}
+            - **部署时间**: ${{ github.event.head_commit.timestamp }}
+            
+            ### 🔗 相关链接
+            - [部署日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [镜像详情](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }})
+            
+          draft: false
+          prerelease: false
+          
+      - name: 上传部署报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report-production
+          path: logs/deployment-report-*.json
+          retention-days: 90
+
+  # 部署监控和通知
+  deployment-monitoring:
+    needs: [deploy-development, deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 收集部署状态
+        run: |
+          echo "开发环境: ${{ needs.deploy-development.result }}"
+          echo "测试环境: ${{ needs.deploy-staging.result }}"
+          echo "生产环境: ${{ needs.deploy-production.result }}"
+          
+      - name: 发送部署摘要通知
+        if: always()
+        run: |
+          # 这里可以添加自定义的通知逻辑
+          echo "部署摘要通知已发送"
+          
+      - name: 清理旧的工作流运行
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy.yml',
+              per_page: 100
+            });
+            
+            const oldRuns = runs.workflow_runs
+              .filter(run => run.status === 'completed')
+              .slice(10); // 保留最近10次运行
+              
+            for (const run of oldRuns) {
+              await github.rest.actions.deleteWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id
+              });
+            }

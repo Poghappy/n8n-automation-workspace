@@ -1,0 +1,18 @@
+#! kibana-expose.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: kibana
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: kibana
+spec:
+    selector:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: kibana
+    ports:
+        - name: kibana-5601
+          port: 5601
+          targetPort: kibana-5601

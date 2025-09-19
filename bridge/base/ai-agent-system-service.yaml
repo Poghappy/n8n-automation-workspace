@@ -1,0 +1,27 @@
+# check if there is at least one published port
+
+#! ai-agent-system-service.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: ai-agent-system-published
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: ai-agent-system
+spec:
+    selector:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: ai-agent-system
+    ports:
+        - name: ai-agent-s-8000
+          port: 8000
+          protocol: TCP
+          targetPort: ai-agent-s-8000
+        - name: ai-agent-s-8001
+          port: 8001
+          protocol: TCP
+          targetPort: ai-agent-s-8001
+
+# check if there is at least one published port

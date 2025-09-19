@@ -1,0 +1,215 @@
+{
+  "name": "MCP Client 示例工作流",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-001",
+      "name": "手动触发",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 200]
+    },
+    {
+      "parameters": {
+        "connectionType": "stdio",
+        "command": "python",
+        "args": ["-m", "mcp_server"],
+        "operation": "listTools",
+        "toolName": "",
+        "toolArguments": {}
+      },
+      "id": "mcp-client-001",
+      "name": "MCP客户端",
+      "type": "n8n-nodes-mcp.mcpClient",
+      "typeVersion": 1,
+      "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "response-data",
+              "name": "mcp_response",
+              "type": "object",
+              "value": "={{ $json }}"
+            },
+            {
+              "id": "timestamp",
+              "name": "processed_at",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "id": "tools-count",
+              "name": "tools_count",
+              "type": "number",
+              "value": "={{ $json.tools ? $json.tools.length : 0 }}"
+            }
+          ]
+        }
+      },
+      "id": "set-response-001",
+      "name": "处理响应",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-condition",
+              "leftValue": "={{ $('MCP客户端').item.json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-success-001",
+      "name": "检查成功",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success-message",
+              "name": "message",
+              "type": "string",
+              "value": "MCP连接成功！发现 {{ $('处理响应').item.json.tools_count }} 个可用工具"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "type": "string",
+              "value": "success"
+            }
+          ]
+        }
+      },
+      "id": "success-output-001",
+      "name": "成功输出",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [900, 100]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "error-message",
+              "name": "message",
+              "type": "string",
+              "value": "MCP连接失败：{{ $('MCP客户端').item.json.error || '未知错误' }}"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "type": "string",
+              "value": "error"
+            }
+          ]
+        }
+      },
+      "id": "error-output-001",
+      "name": "错误输出",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "手动触发": {
+      "main": [
+        [
+          {
+            "node": "MCP客户端",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP客户端": {
+      "main": [
+        [
+          {
+            "node": "处理响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理响应": {
+      "main": [
+        [
+          {
+            "node": "检查成功",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查成功": {
+      "main": [
+        [
+          {
+            "node": "成功输出",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误输出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "executionOrder": "v1",
+    "timezone": "Asia/Shanghai"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-20T00:00:00.000Z",
+      "updatedAt": "2025-01-20T00:00:00.000Z",
+      "id": "mcp-demo",
+      "name": "MCP示例"
+    }
+  ],
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "description": "演示如何使用n8n-nodes-mcp包连接MCP服务器并获取可用工具列表",
+    "version": "1.0.0",
+    "author": "N8N MCP专家智能体",
+    "category": "MCP集成示例"
+  }
+}

@@ -1,0 +1,184 @@
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
+<title>{#$langData['siteConfig'][0][7]#} </title>
+<link rel="stylesheet" type="text/css" href="{#$cfg_staticPath#}css/core/touchBase.css?v={#$cfg_staticVersion#}">
+<link rel="stylesheet" type="text/css" href="{#$templets_skin#}css/mcenter/index_info.css?v={#$cfg_staticVersion#}">
+<script type="text/javascript" src="{#$cfg_staticPath#}js/core/touchScale.js?v={#$cfg_staticVersion#}"></script>
+<script src="{#$cfg_staticPath#}js/core/zepto.min.js"></script>
+<script type="text/javascript">
+  var masterDomain = '{#$cfg_basehost#}', cookiePre = '{#$cfg_cookiePre#}';
+  var joinBusiUrl = '{#getUrlPath service='member' type='user' template='enter'#}';
+  var userinfo = {#json_encode($userinfo)#};
+
+  var mdList = {#json_encode($memberModule.userModuleList)#};
+</script>
+</head>
+
+<body>
+	<div class="page_job">
+		<div class="bgbox">
+			{#if $memberModule && (count($memberModule.userModuleList)>1 || count($memberModule.userModuleList)==0)#}
+			<div class="top_box">
+				{#if $userinfo#}
+				{#*个人升级到商家*#}
+					{#if $userinfo.userType == 1#}
+						{#if !$is_ios_app || !$cfg_ios_shelf#}
+						<a class="left_link" href="{#getUrlPath service='member' type='user' template='enter'#}{#if $is_app#}?appIndex=1&appFullScreen{#/if#}#join">{#$langData['siteConfig'][50][0]#}></a>  {#*  切换商家版  *#}
+						{#/if#}
+					{#else#}
+						<a class="left_link" href="{#$member_busiDomain#}/?currentPageOpen=1&module=job{#if $is_app#}&appIndex=1&appFullScreen{#/if#}">{#$langData['siteConfig'][50][0]#}></a>  {#*  切换商家版  *#}
+					{#/if#}
+				{#else#}
+				<a class="left_link" href="{#$member_busiDomain#}/?currentPageOpen=1&module=job{#if $is_app#}&appIndex=1&appFullScreen{#/if#}">{#$langData['siteConfig'][50][0]#}></a>  {#*  切换商家版  *#}
+				{#/if#}
+				<a class="right_link" href="{#getUrlPath service='member' type='user' template='setting'#}"></a>
+			</div>
+			{#else#}
+			{#include file="../../siteConfig/touch_top.html" pageTitle='求职招聘' headTheme="transparent"#}
+			{#/if#}
+			<div class="userinfo_box">
+				<div class="uhead_box">
+					<a class="uheadImg" href="{#getUrlPath service='member' type='user' template='profile'#}"><img src="{#$userinfo.photo#}" onerror="this.src='/static/images/noPhoto_60.jpg'" alt=""></a>
+					{#if $userinfo#}
+					<a class="uinfo"  href="{#getUrlPath service='member' type='user' template='profile'#}">
+						<h3>{#$userinfo.nickname#}</h3>
+						<p>用户名：{#$userinfo.username#}</p>
+					</a>
+					{#else#}
+					<a class="uinfo"  href="{#getUrlPath service='member' type='user' template='login'#}">
+						<h3>登录/注册</h3>
+					</a>
+					{#/if#}
+				</div>
+				{#if $userinfo.userType == 1#}
+				{#if $userinfo#}<a href="{#$cfg_basehost#}/user-{#$userinfo.userid#}.html" class="homepage {#if $userinfo.level > 0#}level{#/if#}">{#$langData['siteConfig'][10][20]#}</a>{#/if#}  {#*  我的主页  *#}
+				{#else#}
+				<a href="{#if $userinfo#}{#getUrlPath service='business' template='detail' id=$userinfo.busiId#}{#else#}{#getUrlPath service='member' type='user' template='login'#}{#/if#}" class="homepage {#if $userinfo.level > 0#}level{#/if#}">{#$langData['siteConfig'][10][20]#}</a>
+				{#/if#}
+			</div>
+			<div class="module_data">
+				<ul>
+					<li>
+						<a href="{#$member_userDomain#}/job-delivery.html">
+							<h4>{#if $userinfo#}{#$jobcount|default:0#}{#else#}0{#/if#}</h4>
+							<p>已投职位</p>
+						</a>
+					</li>
+					<li>
+						<a href="{#$member_userDomain#}/collection.html?module=job">
+							<h4>{#if $userinfo#}{#$kechengzcount|default:0#}{#else#}0{#/if#}</h4>
+							<p>收藏职位</p>
+						</a>
+					</li>
+<!--					<li>-->
+<!--						<a href="{#$member_userDomain#}/job-collections.html">-->
+<!--							<h4>12</h4>-->
+<!--							<p>关注公司</p>-->
+<!--						</a>-->
+<!--					</li>-->
+					<li>
+						<a href="{#$member_userDomain#}/history?module=job">
+							<h4>{#$todayzjcount|default:0#}</h4>
+							<p>足迹</p>
+						</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+
+		<div class="content_box">
+			{#if $userinfo.level > 0#}
+			<div class="vipTo {#if $cfg_iosVirtualPaymentState#}iosVirtualPaymentHide{#/if#}">
+				<div class="left_text">
+					<h3>{#$userinfo.levelName#}</h3>
+					<p>点亮会员标识，畅享尊贵特权</p>
+				</div>
+				<a href="{#$member_userDomain#}/upgrade.html" class="right_to">{#$userinfo.expired|date_format:"%Y-%m-%d"#}{#$langData['siteConfig'][39][11]#} </a>
+			</div>
+			{#/if#}
+
+			<!-- 此处需判断是否为商家  -->
+			{#if $userinfo.userType == 2#}
+			<div class="link_manage">
+				<div class="left_text">
+					<h5>企业招聘管理</h5>
+					<p>职位管理、简历收藏等，请至商家后台</p>
+				</div>
+				<a href="{#$member_busiDomain#}/?currentPageOpen=1&module=job{#if $is_app#}&appIndex=1&appFullScreen{#/if#}">立即前往</a>
+			</div>
+			{#/if#}
+
+
+			<!-- 简历 -->
+			<!-- 没有简历 -->
+			{#if $ishavejl == 0#}
+			<div class="con to_resume fn-hide">
+				<div class="left_text">
+					<h5>完善我的简历</h5>
+					<p>填写简历才能投递心意公司哦</p>
+				</div>
+				<a class="edit_resume" href="{#$member_userDomain#}/job-resume.html">去完善</a>
+			</div>
+			{#else#}
+			<!-- 已有简历 -->
+			<div class="my_resume con ">
+				<h5>我的简历  <a href="{#$member_userDomain#}/job-resume.html" class="edit_btn">编辑</a></h5>
+				<p class="my_info">{#$detail_name#}<em>|</em>{#$detail_workyear#}年工作经验<em>|</em>{#$detail_educationalname#} </p>
+				<!-- <div class="op_resume">
+				29岁<em>|</em>
+					<div class="refresh_box">
+						<div class="left">
+							<h4>刷新简历</h4>
+							<p>排名更靠前</p>
+						</div>
+						<a class="op_btn"></a>
+					</div>
+					<div class="toTop_box">
+						<div class="left">
+							<h4>简历置顶</h4>
+							<p>大幅增加曝光</p>
+						</div>
+						<a class="op_btn"></a>
+					</div>
+				</div> -->
+			</div>
+			{#/if#}
+			<dl class="con link_con">
+				<dt>我的求职</dt>
+
+				<dd class="myjob_to"><a href="{#$member_userDomain#}/job-resume.html"><h5>管理求职意向</h5><span>在职考虑换工作</span></a></dd>
+				<dd class="mymianshi"><a href="{#$member_userDomain#}/job-invitation.html"><h5>面试邀请 {#if $yqcount>0#}<em class="num">{#$yqcount#}</em>{#/if#}</h5><span></span></a></dd>
+				<dd class="mysearch"><a href="{#$job_channelDomain#}/sentence.html"><h5>快速求职招聘</h5><span></span></a></dd>
+			</dl>
+			{#if !$userinfo || $userinfo.level=='0'#}
+			<div class="vipTo {#if $cfg_iosVirtualPaymentState#}iosVirtualPaymentHide{#/if#}">
+				<div class="left_text">
+					<h3>超级VIP</h3>
+					<p>点亮标识畅享特权，更有10%下单优惠</p>
+				</div>
+				<a href="{#$member_userDomain#}/upgrade.html" class="right_btn">开通会员</a>
+			</div>
+			{#/if#}
+			<dl class="con link_con">
+				<dt>常用功能</dt>
+				<!-- 如果有job企业模块则不显示企业招聘 -->
+				<dd class="manage_job"><a href="{#$job_channelDomain#}/zhaopin.html"><h5>企业招聘</h5><span></span></a></dd>
+				{#if $cfg_fenxiaoState && 'fenxiao'|in_array:$cfg_ucenterLinks#}<dd class="manage_fenxiao"><a href="{#getUrlPath service='member' type='user' template='fenxiao'#}"><h5>{#$cfg_fenxiaoName#}</h5><span>加入推广计划 轻松分享赚钱</span></a></dd>{#/if#}
+
+				{#if $cfg_kefu_touch_url#}
+				{#if $memberModule && count($memberModule.userModuleList)<=1#}<dd class="manage_kefu"><a href="{#$cfg_kefu_touch_url#}"><h5>{#$langData['siteConfig'][54][58]#}</h5><span></span></a></dd>{#/if#}
+				{#/if#}
+			</dl>
+		</div>
+
+	</div>
+	{#include file="../../siteConfig/touch_bottom_5.0.html" active="fifthicon" bottom_module="job"#}
+<script type='text/javascript' src='{#$cfg_basehost#}/include/lang/{#$langList.currCode#}.js?v={#$cfg_staticVersion#}'></script>
+<script type="text/javascript" src="{#$templets_skin#}js/mcenter/index_info.js?v={#$cfg_staticVersion#}"></script>
+
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+#! ai-agent-system-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: ai-agent-system
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: ai-agent-system
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: n8n-
+            com.docker.compose.service: ai-agent-system
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: n8n-
+                com.docker.compose.service: ai-agent-system
+                com.docker.compose.network.n8n-network: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: n8n-ai-agents
+                  image: n8n--ai-agent-system
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: ENVIRONMENT
+                      value: "production"
+                    - name: LOG_LEVEL
+                      value: "INFO"
+                    - name: N8N_API_KEY
+                      value: ""
+                    - name: N8N_URL
+                      value: "http://n8n:5678"
+                    - name: POSTGRES_URL
+                      value: "postgresql://n8n:n8n123@postgres:5432/n8n"
+                    - name: PYTHONPATH
+                      value: "/app"
+                    - name: REDIS_URL
+                      value: "redis://:redis123@redis:6379/0"
+                  ports:
+                    - name: ai-agent-s-8000
+                      containerPort: 8000
+                    - name: ai-agent-s-8001
+                      containerPort: 8001
+                  volumeMounts:
+                    - name: app-src
+                      mountPath: /app/src
+                    - name: app-logs
+                      mountPath: /app/logs
+                    - name: app-data
+                      mountPath: /app/data
+                    - name: app-storage
+                      mountPath: /app/storage
+            volumes:
+                - name: app-src
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/src
+                - name: app-logs
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/logs
+                - name: app-data
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/data
+                - name: app-storage
+                  persistentVolumeClaim:
+                    claimName: ai-agent-system-ai-agent-data

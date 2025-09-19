@@ -1,0 +1,786 @@
+name: Performance Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # 每周日凌晨4点执行性能测试
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: '测试类型'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - load
+          - stress
+          - spike
+          - volume
+          - endurance
+      duration:
+        description: '测试持续时间(分钟)'
+        required: true
+        default: '10'
+        type: string
+      concurrent_users:
+        description: '并发用户数'
+        required: true
+        default: '50'
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  TEST_ENVIRONMENT: performance
+
+jobs:
+  setup-environment:
+    name: 设置测试环境
+    runs-on: ubuntu-latest
+    outputs:
+      test-url: ${{ steps.deploy.outputs.url }}
+      
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 设置Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 构建测试镜像
+        run: |
+          docker build -t n8n-perf-test:latest .
+      
+      - name: 启动测试环境
+        id: deploy
+        run: |
+          # 创建性能测试专用的docker-compose配置
+          cat > docker-compose.perf.yml << 'EOF'
+          version: '3.8'
+          
+          services:
+            postgres:
+              image: postgres:15-alpine
+              environment:
+                POSTGRES_DB: n8n_perf
+                POSTGRES_USER: n8n_perf
+                POSTGRES_PASSWORD: n8n_perf_password
+              volumes:
+                - postgres_perf_data:/var/lib/postgresql/data
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U n8n_perf -d n8n_perf"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+          
+            redis:
+              image: redis:7-alpine
+              command: redis-server --appendonly yes
+              volumes:
+                - redis_perf_data:/data
+              healthcheck:
+                test: ["CMD", "redis-cli", "ping"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+          
+            n8n:
+              image: n8n-perf-test:latest
+              ports:
+                - "5678:5678"
+              environment:
+                N8N_BASIC_AUTH_ACTIVE: false
+                N8N_HOST: localhost
+                N8N_PORT: 5678
+                N8N_PROTOCOL: http
+                DB_TYPE: postgresdb
+                DB_POSTGRESDB_HOST: postgres
+                DB_POSTGRESDB_PORT: 5432
+                DB_POSTGRESDB_DATABASE: n8n_perf
+                DB_POSTGRESDB_USER: n8n_perf
+                DB_POSTGRESDB_PASSWORD: n8n_perf_password
+                QUEUE_BULL_REDIS_HOST: redis
+                QUEUE_BULL_REDIS_PORT: 6379
+                N8N_METRICS: true
+                N8N_LOG_LEVEL: warn
+              depends_on:
+                postgres:
+                  condition: service_healthy
+                redis:
+                  condition: service_healthy
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+          
+          volumes:
+            postgres_perf_data:
+            redis_perf_data:
+          EOF
+          
+          # 启动性能测试环境
+          docker-compose -f docker-compose.perf.yml up -d
+          
+          # 等待服务启动
+          echo "等待服务启动..."
+          sleep 60
+          
+          # 检查服务状态
+          docker-compose -f docker-compose.perf.yml ps
+          
+          # 等待N8N完全启动
+          for i in {1..30}; do
+            if curl -f http://localhost:5678/healthz; then
+              echo "N8N服务已启动"
+              break
+            fi
+            echo "等待N8N启动... ($i/30)"
+            sleep 10
+          done
+          
+          echo "url=http://localhost:5678" >> $GITHUB_OUTPUT
+      
+      - name: 验证测试环境
+        run: |
+          echo "验证测试环境可用性..."
+          
+          # 检查N8N API
+          curl -f http://localhost:5678/rest/login || exit 1
+          
+          # 检查数据库连接
+          docker-compose -f docker-compose.perf.yml exec -T postgres pg_isready -U n8n_perf -d n8n_perf || exit 1
+          
+          # 检查Redis连接
+          docker-compose -f docker-compose.perf.yml exec -T redis redis-cli ping || exit 1
+          
+          echo "✅ 测试环境验证通过"
+
+  load-test:
+    name: 负载测试
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'load' || github.event.inputs.test_type == '' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: 安装K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: 创建负载测试脚本
+        run: |
+          mkdir -p performance-tests
+          
+          cat > performance-tests/load-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+          
+          const errorRate = new Rate('errors');
+          const BASE_URL = __ENV.BASE_URL || 'http://localhost:5678';
+          
+          export let options = {
+            stages: [
+              { duration: '2m', target: 10 },   // 预热
+              { duration: '5m', target: parseInt(__ENV.CONCURRENT_USERS || '50') }, // 负载测试
+              { duration: '2m', target: 0 },    // 冷却
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<2000'], // 95%的请求在2秒内完成
+              http_req_failed: ['rate<0.05'],    // 错误率低于5%
+              errors: ['rate<0.1'],              // 自定义错误率低于10%
+            },
+          };
+          
+          export default function() {
+            // 测试健康检查端点
+            let healthResponse = http.get(`${BASE_URL}/healthz`);
+            let healthCheck = check(healthResponse, {
+              'health check status is 200': (r) => r.status === 200,
+              'health check response time < 500ms': (r) => r.timings.duration < 500,
+            });
+            errorRate.add(!healthCheck);
+            
+            sleep(1);
+            
+            // 测试登录页面
+            let loginResponse = http.get(`${BASE_URL}/rest/login`);
+            let loginCheck = check(loginResponse, {
+              'login page status is 200': (r) => r.status === 200,
+              'login page response time < 1000ms': (r) => r.timings.duration < 1000,
+            });
+            errorRate.add(!loginCheck);
+            
+            sleep(1);
+            
+            // 测试API端点
+            let apiResponse = http.get(`${BASE_URL}/rest/workflows`);
+            let apiCheck = check(apiResponse, {
+              'API response status is 200 or 401': (r) => r.status === 200 || r.status === 401,
+              'API response time < 2000ms': (r) => r.timings.duration < 2000,
+            });
+            errorRate.add(!apiCheck);
+            
+            sleep(2);
+          }
+          
+          export function handleSummary(data) {
+            return {
+              'load-test-results.json': JSON.stringify(data, null, 2),
+              'load-test-summary.txt': textSummary(data, { indent: ' ', enableColors: false }),
+            };
+          }
+          
+          function textSummary(data, options) {
+            const indent = options.indent || '';
+            const enableColors = options.enableColors !== false;
+            
+            let summary = `${indent}Load Test Summary\n`;
+            summary += `${indent}================\n\n`;
+            
+            // 基本统计
+            summary += `${indent}Checks.................: ${data.metrics.checks.values.passes}/${data.metrics.checks.values.passes + data.metrics.checks.values.fails} (${(data.metrics.checks.values.rate * 100).toFixed(2)}%)\n`;
+            summary += `${indent}Data received..........: ${(data.metrics.data_received.values.count / 1024 / 1024).toFixed(2)} MB\n`;
+            summary += `${indent}Data sent..............: ${(data.metrics.data_sent.values.count / 1024).toFixed(2)} KB\n`;
+            summary += `${indent}HTTP req blocked.......: avg=${data.metrics.http_req_blocked.values.avg.toFixed(2)}ms min=${data.metrics.http_req_blocked.values.min.toFixed(2)}ms med=${data.metrics.http_req_blocked.values.med.toFixed(2)}ms max=${data.metrics.http_req_blocked.values.max.toFixed(2)}ms p(90)=${data.metrics.http_req_blocked.values['p(90)'].toFixed(2)}ms p(95)=${data.metrics.http_req_blocked.values['p(95)'].toFixed(2)}ms\n`;
+            summary += `${indent}HTTP req connecting....: avg=${data.metrics.http_req_connecting.values.avg.toFixed(2)}ms min=${data.metrics.http_req_connecting.values.min.toFixed(2)}ms med=${data.metrics.http_req_connecting.values.med.toFixed(2)}ms max=${data.metrics.http_req_connecting.values.max.toFixed(2)}ms p(90)=${data.metrics.http_req_connecting.values['p(90)'].toFixed(2)}ms p(95)=${data.metrics.http_req_connecting.values['p(95)'].toFixed(2)}ms\n`;
+            summary += `${indent}HTTP req duration......: avg=${data.metrics.http_req_duration.values.avg.toFixed(2)}ms min=${data.metrics.http_req_duration.values.min.toFixed(2)}ms med=${data.metrics.http_req_duration.values.med.toFixed(2)}ms max=${data.metrics.http_req_duration.values.max.toFixed(2)}ms p(90)=${data.metrics.http_req_duration.values['p(90)'].toFixed(2)}ms p(95)=${data.metrics.http_req_duration.values['p(95)'].toFixed(2)}ms\n`;
+            summary += `${indent}HTTP req failed........: ${(data.metrics.http_req_failed.values.rate * 100).toFixed(2)}% (${data.metrics.http_req_failed.values.passes}/${data.metrics.http_req_failed.values.passes + data.metrics.http_req_failed.values.fails})\n`;
+            summary += `${indent}HTTP reqs..............: ${data.metrics.http_reqs.values.count} (${data.metrics.http_reqs.values.rate.toFixed(2)}/s)\n`;
+            summary += `${indent}Iteration duration.....: avg=${data.metrics.iteration_duration.values.avg.toFixed(2)}ms min=${data.metrics.iteration_duration.values.min.toFixed(2)}ms med=${data.metrics.iteration_duration.values.med.toFixed(2)}ms max=${data.metrics.iteration_duration.values.max.toFixed(2)}ms p(90)=${data.metrics.iteration_duration.values['p(90)'].toFixed(2)}ms p(95)=${data.metrics.iteration_duration.values['p(95)'].toFixed(2)}ms\n`;
+            summary += `${indent}Iterations.............: ${data.metrics.iterations.values.count} (${data.metrics.iterations.values.rate.toFixed(2)}/s)\n`;
+            summary += `${indent}VUs....................: ${data.metrics.vus.values.value} (min=${data.metrics.vus.values.min} max=${data.metrics.vus.values.max})\n`;
+            
+            return summary;
+          }
+          EOF
+      
+      - name: 执行负载测试
+        run: |
+          echo "开始执行负载测试..."
+          
+          k6 run \
+            --env BASE_URL=${{ needs.setup-environment.outputs.test-url }} \
+            --env CONCURRENT_USERS=${{ github.event.inputs.concurrent_users || '50' }} \
+            --out json=load-test-results.json \
+            performance-tests/load-test.js
+        env:
+          K6_NO_USAGE_REPORT: true
+      
+      - name: 分析测试结果
+        run: |
+          echo "分析负载测试结果..."
+          
+          if [ -f load-test-results.json ]; then
+            # 提取关键指标
+            avg_response_time=$(jq -r '.metrics.http_req_duration.values.avg' load-test-results.json)
+            p95_response_time=$(jq -r '.metrics.http_req_duration.values["p(95)"]' load-test-results.json)
+            error_rate=$(jq -r '.metrics.http_req_failed.values.rate' load-test-results.json)
+            throughput=$(jq -r '.metrics.http_reqs.values.rate' load-test-results.json)
+            
+            echo "负载测试关键指标:"
+            echo "- 平均响应时间: ${avg_response_time}ms"
+            echo "- P95响应时间: ${p95_response_time}ms"
+            echo "- 错误率: $(echo "$error_rate * 100" | bc -l)%"
+            echo "- 吞吐量: ${throughput} req/s"
+            
+            # 检查性能阈值
+            if (( $(echo "$p95_response_time > 2000" | bc -l) )); then
+              echo "::warning::P95响应时间超过2秒阈值: ${p95_response_time}ms"
+            fi
+            
+            if (( $(echo "$error_rate > 0.05" | bc -l) )); then
+              echo "::error::错误率超过5%阈值: $(echo "$error_rate * 100" | bc -l)%"
+              exit 1
+            fi
+          fi
+      
+      - name: 上传负载测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-reports
+          path: |
+            load-test-results.json
+            load-test-summary.txt
+          retention-days: 30
+
+  stress-test:
+    name: 压力测试
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'stress' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 安装K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: 创建压力测试脚本
+        run: |
+          mkdir -p performance-tests
+          
+          cat > performance-tests/stress-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+          
+          const errorRate = new Rate('errors');
+          const BASE_URL = __ENV.BASE_URL || 'http://localhost:5678';
+          
+          export let options = {
+            stages: [
+              { duration: '1m', target: 10 },   // 预热
+              { duration: '2m', target: 50 },   // 正常负载
+              { duration: '3m', target: 100 },  // 增加压力
+              { duration: '3m', target: 200 },  // 高压力
+              { duration: '2m', target: 300 },  // 极限压力
+              { duration: '1m', target: 0 },    // 冷却
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<5000'], // 压力测试下允许更高的响应时间
+              http_req_failed: ['rate<0.1'],     // 错误率低于10%
+            },
+          };
+          
+          export default function() {
+            let response = http.get(`${BASE_URL}/healthz`);
+            let result = check(response, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 5000ms': (r) => r.timings.duration < 5000,
+            });
+            errorRate.add(!result);
+            
+            sleep(Math.random() * 2 + 1); // 1-3秒随机间隔
+          }
+          EOF
+      
+      - name: 执行压力测试
+        run: |
+          echo "开始执行压力测试..."
+          
+          k6 run \
+            --env BASE_URL=${{ needs.setup-environment.outputs.test-url }} \
+            --out json=stress-test-results.json \
+            performance-tests/stress-test.js
+        env:
+          K6_NO_USAGE_REPORT: true
+      
+      - name: 上传压力测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-reports
+          path: stress-test-results.json
+          retention-days: 30
+
+  spike-test:
+    name: 峰值测试
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'spike' }}
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 安装K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: 创建峰值测试脚本
+        run: |
+          mkdir -p performance-tests
+          
+          cat > performance-tests/spike-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          
+          const BASE_URL = __ENV.BASE_URL || 'http://localhost:5678';
+          
+          export let options = {
+            stages: [
+              { duration: '30s', target: 10 },  // 正常负载
+              { duration: '10s', target: 500 }, // 突然峰值
+              { duration: '30s', target: 10 },  // 回到正常
+              { duration: '10s', target: 500 }, // 再次峰值
+              { duration: '30s', target: 0 },   // 冷却
+            ],
+            thresholds: {
+              http_req_failed: ['rate<0.2'], // 峰值测试允许更高的错误率
+            },
+          };
+          
+          export default function() {
+            let response = http.get(`${BASE_URL}/healthz`);
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+            });
+            
+            sleep(0.5);
+          }
+          EOF
+      
+      - name: 执行峰值测试
+        run: |
+          echo "开始执行峰值测试..."
+          
+          k6 run \
+            --env BASE_URL=${{ needs.setup-environment.outputs.test-url }} \
+            --out json=spike-test-results.json \
+            performance-tests/spike-test.js
+        env:
+          K6_NO_USAGE_REPORT: true
+      
+      - name: 上传峰值测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spike-test-reports
+          path: spike-test-results.json
+          retention-days: 30
+
+  endurance-test:
+    name: 耐久性测试
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    if: ${{ github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'endurance' }}
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 安装K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: 创建耐久性测试脚本
+        run: |
+          mkdir -p performance-tests
+          
+          duration="${{ github.event.inputs.duration || '10' }}"
+          
+          cat > performance-tests/endurance-test.js << EOF
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          
+          const BASE_URL = __ENV.BASE_URL || 'http://localhost:5678';
+          
+          export let options = {
+            stages: [
+              { duration: '2m', target: 20 },     // 预热
+              { duration: '${duration}m', target: 20 }, // 持续负载
+              { duration: '2m', target: 0 },      // 冷却
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<3000'],
+              http_req_failed: ['rate<0.05'],
+            },
+          };
+          
+          export default function() {
+            let response = http.get(\`\${BASE_URL}/healthz\`);
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 3000ms': (r) => r.timings.duration < 3000,
+            });
+            
+            sleep(3);
+          }
+          EOF
+      
+      - name: 执行耐久性测试
+        run: |
+          echo "开始执行耐久性测试，持续时间: ${{ github.event.inputs.duration || '10' }}分钟..."
+          
+          k6 run \
+            --env BASE_URL=${{ needs.setup-environment.outputs.test-url }} \
+            --out json=endurance-test-results.json \
+            performance-tests/endurance-test.js
+        env:
+          K6_NO_USAGE_REPORT: true
+      
+      - name: 上传耐久性测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: endurance-test-reports
+          path: endurance-test-results.json
+          retention-days: 30
+
+  performance-report:
+    name: 性能测试报告
+    runs-on: ubuntu-latest
+    needs: [setup-environment, load-test, stress-test, spike-test, endurance-test]
+    if: always()
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 下载所有测试报告
+        uses: actions/download-artifact@v4
+        with:
+          path: performance-reports
+      
+      - name: 安装分析工具
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+      
+      - name: 生成性能测试报告
+        run: |
+          echo "生成综合性能测试报告..."
+          
+          report_file="performance-test-report-$(date +%Y%m%d-%H%M%S).md"
+          
+          cat > $report_file << 'EOF'
+          # N8N 自动化平台性能测试报告
+          
+          ## 测试概览
+          EOF
+          
+          echo "- **测试时间**: $(date '+%Y-%m-%d %H:%M:%S')" >> $report_file
+          echo "- **测试类型**: ${{ github.event.inputs.test_type || 'full' }}" >> $report_file
+          echo "- **并发用户**: ${{ github.event.inputs.concurrent_users || '50' }}" >> $report_file
+          echo "- **测试持续时间**: ${{ github.event.inputs.duration || '10' }}分钟" >> $report_file
+          echo "- **测试环境**: ${{ env.TEST_ENVIRONMENT }}" >> $report_file
+          echo "- **分支**: ${{ github.ref_name }}" >> $report_file
+          echo "- **提交**: ${{ github.sha }}" >> $report_file
+          echo "" >> $report_file
+          
+          # 测试结果汇总
+          cat >> $report_file << 'EOF'
+          ## 测试结果汇总
+          
+          | 测试类型 | 状态 | 说明 |
+          |---------|------|------|
+          EOF
+          
+          echo "| 负载测试 | ${{ needs.load-test.result }} | 模拟正常业务负载 |" >> $report_file
+          echo "| 压力测试 | ${{ needs.stress-test.result }} | 测试系统极限性能 |" >> $report_file
+          echo "| 峰值测试 | ${{ needs.spike-test.result }} | 测试突发流量处理能力 |" >> $report_file
+          echo "| 耐久性测试 | ${{ needs.endurance-test.result }} | 测试长时间运行稳定性 |" >> $report_file
+          echo "" >> $report_file
+          
+          # 详细性能指标
+          cat >> $report_file << 'EOF'
+          ## 详细性能指标
+          
+          ### 负载测试结果
+          EOF
+          
+          if [ -f performance-reports/load-test-reports/load-test-results.json ]; then
+            echo "```json" >> $report_file
+            jq '.metrics | {
+              "平均响应时间(ms)": .http_req_duration.values.avg,
+              "P95响应时间(ms)": .http_req_duration.values["p(95)"],
+              "P99响应时间(ms)": .http_req_duration.values["p(99)"],
+              "错误率(%)": (.http_req_failed.values.rate * 100),
+              "吞吐量(req/s)": .http_reqs.values.rate,
+              "总请求数": .http_reqs.values.count
+            }' performance-reports/load-test-reports/load-test-results.json >> $report_file
+            echo "```" >> $report_file
+            echo "" >> $report_file
+          fi
+          
+          # 性能趋势分析
+          cat >> $report_file << 'EOF'
+          ## 性能趋势分析
+          
+          ### 响应时间分析
+          EOF
+          
+          if [ -f performance-reports/load-test-reports/load-test-results.json ]; then
+            avg_time=$(jq -r '.metrics.http_req_duration.values.avg' performance-reports/load-test-reports/load-test-results.json)
+            p95_time=$(jq -r '.metrics.http_req_duration.values["p(95)"]' performance-reports/load-test-reports/load-test-results.json)
+            
+            echo "- 平均响应时间: ${avg_time}ms" >> $report_file
+            echo "- P95响应时间: ${p95_time}ms" >> $report_file
+            
+            if (( $(echo "$avg_time < 500" | bc -l) )); then
+              echo "- ✅ 平均响应时间表现优秀 (<500ms)" >> $report_file
+            elif (( $(echo "$avg_time < 1000" | bc -l) )); then
+              echo "- ⚠️ 平均响应时间表现良好 (<1000ms)" >> $report_file
+            else
+              echo "- ❌ 平均响应时间需要优化 (>1000ms)" >> $report_file
+            fi
+            
+            if (( $(echo "$p95_time < 2000" | bc -l) )); then
+              echo "- ✅ P95响应时间表现优秀 (<2000ms)" >> $report_file
+            else
+              echo "- ❌ P95响应时间需要优化 (>2000ms)" >> $report_file
+            fi
+          fi
+          
+          echo "" >> $report_file
+          
+          # 性能建议
+          cat >> $report_file << 'EOF'
+          ## 性能优化建议
+          
+          ### 基于测试结果的建议
+          EOF
+          
+          # 根据测试结果生成建议
+          if [ -f performance-reports/load-test-reports/load-test-results.json ]; then
+            error_rate=$(jq -r '.metrics.http_req_failed.values.rate' performance-reports/load-test-reports/load-test-results.json)
+            
+            if (( $(echo "$error_rate > 0.05" | bc -l) )); then
+              echo "1. **错误率偏高**: 当前错误率为$(echo "$error_rate * 100" | bc -l)%，建议检查应用日志和数据库连接" >> $report_file
+            fi
+            
+            echo "2. **数据库优化**: 考虑添加数据库连接池和查询优化" >> $report_file
+            echo "3. **缓存策略**: 实施Redis缓存减少数据库压力" >> $report_file
+            echo "4. **负载均衡**: 在高并发场景下考虑水平扩展" >> $report_file
+            echo "5. **监控告警**: 建立性能监控和告警机制" >> $report_file
+          fi
+          
+          echo "" >> $report_file
+          
+          # 系统资源使用情况
+          cat >> $report_file << 'EOF'
+          ## 系统资源使用情况
+          
+          ### 测试期间资源监控
+          - CPU使用率: 待监控系统集成
+          - 内存使用率: 待监控系统集成  
+          - 磁盘I/O: 待监控系统集成
+          - 网络I/O: 待监控系统集成
+          
+          ### 建议
+          - 集成Prometheus + Grafana进行实时监控
+          - 设置资源使用告警阈值
+          - 定期进行性能基准测试
+          
+          ---
+          EOF
+          
+          echo "*报告生成时间: $(date '+%Y-%m-%d %H:%M:%S')*" >> $report_file
+          
+          echo "性能测试报告已生成: $report_file"
+          cat $report_file
+      
+      - name: 上传性能测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-report
+          path: performance-test-report-*.md
+          retention-days: 90
+      
+      - name: 发送性能测试通知
+        if: always()
+        run: |
+          # 计算测试结果
+          failed_tests=0
+          total_tests=0
+          
+          tests=("load-test" "stress-test" "spike-test" "endurance-test")
+          results=("${{ needs.load-test.result }}" "${{ needs.stress-test.result }}" "${{ needs.spike-test.result }}" "${{ needs.endurance-test.result }}")
+          
+          for i in "${!tests[@]}"; do
+            if [ "${results[$i]}" != "skipped" ]; then
+              total_tests=$((total_tests + 1))
+              if [ "${results[$i]}" = "failure" ]; then
+                failed_tests=$((failed_tests + 1))
+              fi
+            fi
+          done
+          
+          # 确定通知级别
+          if [ $failed_tests -eq 0 ]; then
+            color="good"
+            message="✅ 性能测试全部通过"
+          elif [ $failed_tests -le 1 ]; then
+            color="warning"
+            message="⚠️ $failed_tests/$total_tests 项性能测试未通过"
+          else
+            color="danger"
+            message="❌ $failed_tests/$total_tests 项性能测试失败"
+          fi
+          
+          # 发送Slack通知
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"attachments\": [{
+                  \"color\": \"$color\",
+                  \"title\": \"N8N性能测试报告\",
+                  \"text\": \"$message\",
+                  \"fields\": [
+                    {\"title\": \"测试类型\", \"value\": \"${{ github.event.inputs.test_type || 'full' }}\", \"short\": true},
+                    {\"title\": \"并发用户\", \"value\": \"${{ github.event.inputs.concurrent_users || '50' }}\", \"short\": true},
+                    {\"title\": \"负载测试\", \"value\": \"${{ needs.load-test.result }}\", \"short\": true},
+                    {\"title\": \"压力测试\", \"value\": \"${{ needs.stress-test.result }}\", \"short\": true},
+                    {\"title\": \"峰值测试\", \"value\": \"${{ needs.spike-test.result }}\", \"short\": true},
+                    {\"title\": \"耐久性测试\", \"value\": \"${{ needs.endurance-test.result }}\", \"short\": true},
+                    {\"title\": \"分支\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                    {\"title\": \"运行ID\", \"value\": \"${{ github.run_id }}\", \"short\": true}
+                  ],
+                  \"footer\": \"GitHub Actions Performance Test\",
+                  \"ts\": $(date +%s)
+                }]
+              }" \
+              "${{ secrets.SLACK_WEBHOOK_URL }}" || echo "Slack通知发送失败"
+          fi
+
+  cleanup:
+    name: 清理测试环境
+    runs-on: ubuntu-latest
+    needs: [setup-environment, load-test, stress-test, spike-test, endurance-test, performance-report]
+    if: always()
+    
+    steps:
+      - name: Checkout代码
+        uses: actions/checkout@v4
+      
+      - name: 清理测试环境
+        run: |
+          echo "清理性能测试环境..."
+          
+          # 停止并删除测试容器
+          if [ -f docker-compose.perf.yml ]; then
+            docker-compose -f docker-compose.perf.yml down -v --remove-orphans || true
+          fi
+          
+          # 清理测试镜像
+          docker rmi n8n-perf-test:latest || true
+          
+          # 清理未使用的资源
+          docker system prune -f || true
+          
+          echo "✅ 测试环境清理完成"

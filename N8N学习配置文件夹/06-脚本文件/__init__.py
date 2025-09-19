@@ -1,0 +1,1 @@
+# Scripts package for N8N AI Agent System

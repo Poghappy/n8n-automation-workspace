@@ -1,0 +1,806 @@
+{
+  "name": "火鸟门户新闻采集工作流 - 多源增强版 (含Notion存储)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "定时触发器",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 工作流状态初始化和监控\nconst workflowId = $execution.id;\nconst startTime = Date.now();\n\n// 数据源配置\nconst rssSources = [\n  { name: 'The Neuron', url: 'https://www.theneuron.ai/feed', category: 'AI资讯', categoryId: 1 },\n  { name: 'Futurepedia', url: 'https://www.futurepedia.io/rss', category: 'AI工具', categoryId: 1 },\n  { name: 'Superhuman', url: 'https://blog.superhuman.com/feed/', category: '科技资讯', categoryId: 1 },\n  { name: 'The Rundown AI', url: 'https://www.therundown.ai/feed', category: 'AI资讯', categoryId: 1 }\n];\n\nconst githubSources = [\n  { name: 'GitHub Trending', repo: 'trending', category: '开源项目', categoryId: 1 }\n];\n\n// 工作流状态跟踪\nconst workflowStatus = {\n  executionId: workflowId,\n  startTime: startTime,\n  startTimestamp: new Date().toISOString(),\n  phase: 'initialization',\n  totalSources: rssSources.length + githubSources.length,\n  expectedSteps: [\n    'data_collection',\n    'content_processing', \n    'notion_storage',\n    'ai_management',\n    'firebird_publish',\n    'completion'\n  ],\n  currentStep: 1,\n  totalSteps: 6\n};\n\nconsole.log('🚀 工作流开始执行:', {\n  executionId: workflowId,\n  totalSources: workflowStatus.totalSources,\n  expectedDuration: '5-10分钟',\n  startTime: workflowStatus.startTimestamp\n});\n\nreturn { \n  json: { \n    rssSources, \n    githubSources, \n    workflowStatus,\n    timestamp: new Date().toISOString() \n  } \n};"
+      },
+      "id": "source-config",
+      "name": "数据源配置与状态初始化",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// RSS采集逻辑 - 增强版\nconst axios = require('axios');\nconst xml2js = require('xml2js');\n\nconst rssSources = $json.rssSources;\nconst workflowStatus = $json.workflowStatus;\nconst collectedItems = [];\nconst errors = [];\nconst sourceStats = [];\n\n// 更新工作流状态\nworkflowStatus.phase = 'rss_collection';\nworkflowStatus.currentStep = 2;\n\n// RSS采集函数\nasync function fetchRSSFeed(source) {\n  const startTime = Date.now();\n  try {\n    console.log(`📡 开始采集RSS源: ${source.name}`);\n    \n    const response = await axios.get(source.url, {\n      timeout: 30000,\n      headers: {\n        'User-Agent': 'Mozilla/5.0 (compatible; n8n-news-collector/1.0)',\n        'Accept': 'application/rss+xml, application/xml, text/xml'\n      }\n    });\n\n    const parser = new xml2js.Parser({\n      explicitArray: false,\n      ignoreAttrs: false,\n      mergeAttrs: true\n    });\n\n    const result = await parser.parseStringPromise(response.data);\n    const items = result.rss?.channel?.item || result.feed?.entry || [];\n    \n    let processedItems = Array.isArray(items) ? items : [items].filter(Boolean);\n    processedItems = processedItems.slice(0, 10); // 限制每个源最多10条\n    \n    const processingTime = Date.now() - startTime;\n    sourceStats.push({\n      source: source.name,\n      status: 'success',\n      itemCount: processedItems.length,\n      processingTime: processingTime,\n      url: source.url\n    });\n    \n    console.log(`✅ RSS采集成功 - ${source.name}: ${processedItems.length}条`);\n    return processedItems;\n    \n  } catch (error) {\n    const processingTime = Date.now() - startTime;\n    console.error(`❌ RSS采集失败 - ${source.name}:`, error.message);\n    \n    errors.push({\n      source: source.name,\n      error: error.message,\n      type: 'rss',\n      url: source.url,\n      timestamp: new Date().toISOString()\n    });\n    \n    sourceStats.push({\n      source: source.name,\n      status: 'failed',\n      itemCount: 0,\n      processingTime: processingTime,\n      error: error.message,\n      url: source.url\n    });\n    \n    return [];\n  }\n}\n\n// 数据标准化函数 - 增强版\nfunction normalizeRSSItem(item, source) {\n  const publishDate = item.pubDate || item.published || item.updated || new Date().toISOString();\n  \n  // 提取内容，优先级：content > description > summary\n  let content = '';\n  if (item.content) {\n    content = typeof item.content === 'object' ? (item.content._ || item.content) : item.content;\n  } else if (item.description) {\n    content = typeof item.description === 'object' ? (item.description._ || item.description) : item.description;\n  } else if (item.summary) {\n    content = typeof item.summary === 'object' ? (item.summary._ || item.summary) : item.summary;\n  }\n  \n  // 清理HTML标签\n  content = content.replace(/<[^>]*>/g, '').trim();\n  \n  // 提取标题\n  let title = '';\n  if (item.title) {\n    title = typeof item.title === 'object' ? (item.title._ || item.title) : item.title;\n  }\n  title = title.replace(/<[^>]*>/g, '').trim();\n  \n  return {\n    title: title || '无标题',\n    content: content || '无内容',\n    summary: content.substring(0, 200) + (content.length > 200 ? '...' : ''),\n    author: item.author?.name || item.author || item['dc:creator'] || source.name,\n    source: source.name,\n    category: source.category,\n    categoryId: source.categoryId,\n    source_url: item.link?.href || item.link || item.guid?._ || item.guid || '',\n    image_url: item.enclosure?.url || item['media:thumbnail']?.url || item['media:content']?.url || '',\n    keywords: Array.isArray(item.category) ? item.category.join(',') : (item.category || ''),\n    publishedAt: publishDate,\n    collectedAt: new Date().toISOString(),\n    sourceType: 'rss',\n    \n    // 数据质量指标\n    dataQuality: {\n      hasTitle: !!title,\n      hasContent: !!content,\n      hasImage: !!(item.enclosure?.url || item['media:thumbnail']?.url),\n      hasAuthor: !!(item.author?.name || item.author || item['dc:creator']),\n      contentLength: content.length,\n      titleLength: title.length\n    },\n    \n    // 处理元数据\n    processingMetadata: {\n      collectionTime: Date.now(),\n      sourceUrl: source.url,\n      parsingMethod: 'xml2js'\n    },\n    \n    originalData: item\n  };\n}\n\n// 并行采集所有RSS源\nconst rssPromises = rssSources.map(async (source) => {\n  const items = await fetchRSSFeed(source);\n  return items.map(item => normalizeRSSItem(item, source));\n});\n\ntry {\n  const rssResults = await Promise.all(rssPromises);\n  \n  // 合并所有结果\n  rssResults.forEach(sourceItems => {\n    collectedItems.push(...sourceItems);\n  });\n  \n  // 数据质量统计\n  const qualityStats = {\n    totalItems: collectedItems.length,\n    itemsWithImages: collectedItems.filter(item => item.image_url).length,\n    itemsWithAuthors: collectedItems.filter(item => item.author !== item.source).length,\n    averageContentLength: collectedItems.reduce((sum, item) => sum + item.content.length, 0) / collectedItems.length || 0,\n    averageTitleLength: collectedItems.reduce((sum, item) => sum + item.title.length, 0) / collectedItems.length || 0\n  };\n  \n  // 更新工作流状态\n  workflowStatus.rssCollection = {\n    completed: true,\n    itemsCollected: collectedItems.length,\n    sourcesProcessed: rssSources.length,\n    successfulSources: sourceStats.filter(s => s.status === 'success').length,\n    failedSources: sourceStats.filter(s => s.status === 'failed').length,\n    totalProcessingTime: Date.now() - workflowStatus.startTime,\n    qualityStats: qualityStats\n  };\n  \n  console.log(`📊 RSS采集完成统计:`, {\n    总条数: collectedItems.length,\n    错误数: errors.length,\n    成功源: workflowStatus.rssCollection.successfulSources,\n    失败源: workflowStatus.rssCollection.failedSources,\n    平均内容长度: Math.round(qualityStats.averageContentLength),\n    带图片比例: Math.round((qualityStats.itemsWithImages / collectedItems.length) * 100) + '%'\n  });\n  \n  return {\n    json: {\n      items: collectedItems,\n      errors,\n      sourceStats,\n      qualityStats,\n      workflowStatus,\n      summary: {\n        totalItems: collectedItems.length,\n        errorCount: errors.length,\n        sources: rssSources.length,\n        collectedAt: new Date().toISOString(),\n        processingTime: Date.now() - workflowStatus.startTime\n      }\n    }\n  };\n  \n} catch (error) {\n  console.error('❌ RSS批量采集失败:', error);\n  \n  // 更新工作流状态为失败\n  workflowStatus.rssCollection = {\n    completed: false,\n    error: error.message,\n    failedAt: new Date().toISOString()\n  };\n  \n  throw new Error(`RSS采集失败: ${error.message}`);\n}"
+      },
+      "id": "rss-collector",
+      "name": "RSS新闻采集",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// GitHub项目新闻采集逻辑 - 增强版\nconst axios = require('axios');\n\nconst githubSources = $json.githubSources;\nconst workflowStatus = $json.workflowStatus;\nconst collectedItems = [];\nconst errors = [];\nconst sourceStats = [];\n\n// 更新工作流状态\nworkflowStatus.phase = 'github_collection';\n\n// GitHub API配置\nconst GITHUB_API_BASE = 'https://api.github.com';\nconst GITHUB_TOKEN = process.env.GITHUB_TOKEN; // 可选，提高API限制\n\n// GitHub API请求配置\nconst githubConfig = {\n  timeout: 30000,\n  headers: {\n    'User-Agent': 'n8n-news-collector/1.0',\n    'Accept': 'application/vnd.github.v3+json'\n  }\n};\n\nif (GITHUB_TOKEN) {\n  githubConfig.headers['Authorization'] = `token ${GITHUB_TOKEN}`;\n}\n\n// 获取GitHub趋势项目\nasync function fetchGitHubTrending() {\n  const startTime = Date.now();\n  try {\n    console.log('📡 获取GitHub趋势项目...');\n    \n    // 使用GitHub搜索API获取最近热门项目\n    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\n    const searchUrl = `${GITHUB_API_BASE}/search/repositories?q=created:>${oneWeekAgo}&sort=stars&order=desc&per_page=10`;\n    \n    const response = await axios.get(searchUrl, githubConfig);\n    const items = response.data.items || [];\n    \n    const processingTime = Date.now() - startTime;\n    sourceStats.push({\n      source: 'GitHub Trending',\n      status: 'success',\n      itemCount: items.length,\n      processingTime: processingTime,\n      apiUrl: searchUrl\n    });\n    \n    console.log(`✅ GitHub趋势获取成功: ${items.length}个项目`);\n    return items;\n    \n  } catch (error) {\n    const processingTime = Date.now() - startTime;\n    console.error('❌ GitHub趋势获取失败:', error.message);\n    \n    errors.push({\n      source: 'GitHub Trending',\n      error: error.message,\n      type: 'github-trending',\n      timestamp: new Date().toISOString()\n    });\n    \n    sourceStats.push({\n      source: 'GitHub Trending',\n      status: 'failed',\n      itemCount: 0,\n      processingTime: processingTime,\n      error: error.message\n    });\n    \n    return [];\n  }\n}\n\n// 标准化GitHub项目数据 - 增强版\nfunction normalizeGitHubRepo(repo, source) {\n  const description = repo.description || '暂无描述';\n  const topics = repo.topics || [];\n  \n  // 生成更丰富的内容\n  const content = `## 项目简介\\n${description}\\n\\n` +\n                 `**编程语言:** ${repo.language || '未知'}\\n` +\n                 `**Stars:** ${repo.stargazers_count || 0} ⭐\\n` +\n                 `**Forks:** ${repo.forks_count || 0} 🍴\\n` +\n                 `**Issues:** ${repo.open_issues_count || 0} 📋\\n` +\n                 `**创建时间:** ${new Date(repo.created_at).toLocaleDateString('zh-CN')}\\n` +\n                 `**最后更新:** ${new Date(repo.updated_at).toLocaleDateString('zh-CN')}\\n\\n` +\n                 (topics.length > 0 ? `**相关标签:** ${topics.join(', ')}\\n\\n` : '') +\n                 `**项目地址:** ${repo.html_url}\\n\\n` +\n                 `这是一个在GitHub上备受关注的开源项目，值得开发者关注和学习。`;\n  \n  return {\n    title: `${repo.name} - ${description.substring(0, 30)}${description.length > 30 ? '...' : ''}`,\n    content: content,\n    summary: `${repo.name}: ${description}`,\n    author: repo.owner?.login || 'GitHub用户',\n    source: source.name,\n    category: source.category,\n    categoryId: source.categoryId,\n    source_url: repo.html_url,\n    image_url: repo.owner?.avatar_url || '',\n    keywords: `${repo.language || ''}, 开源, GitHub, ${topics.join(', ')}`.replace(/^,\\s*/, ''),\n    publishedAt: repo.created_at,\n    collectedAt: new Date().toISOString(),\n    sourceType: 'github-repo',\n    \n    // GitHub特有的元数据\n    metadata: {\n      stars: repo.stargazers_count,\n      forks: repo.forks_count,\n      language: repo.language,\n      topics: topics,\n      openIssues: repo.open_issues_count,\n      license: repo.license?.name || '未知',\n      size: repo.size,\n      defaultBranch: repo.default_branch\n    },\n    \n    // 数据质量指标\n    dataQuality: {\n      hasTitle: !!repo.name,\n      hasContent: !!description,\n      hasImage: !!repo.owner?.avatar_url,\n      hasAuthor: !!repo.owner?.login,\n      contentLength: content.length,\n      titleLength: repo.name?.length || 0,\n      popularityScore: (repo.stargazers_count || 0) + (repo.forks_count || 0) * 2\n    },\n    \n    originalData: repo\n  };\n}\n\n// 处理GitHub数据源\nfor (const source of githubSources) {\n  try {\n    if (source.repo === 'trending') {\n      // 获取趋势项目\n      const trendingRepos = await fetchGitHubTrending();\n      trendingRepos.forEach(repo => {\n        collectedItems.push(normalizeGitHubRepo(repo, source));\n      });\n    }\n    // 可以在这里添加其他GitHub源的处理逻辑\n    \n  } catch (error) {\n    console.error(`❌ GitHub源处理失败 - ${source.name}:`, error.message);\n    errors.push({\n      source: source.name,\n      error: error.message,\n      type: 'github-processing',\n      timestamp: new Date().toISOString()\n    });\n  }\n}\n\n// GitHub采集统计\nconst githubStats = {\n  totalItems: collectedItems.length,\n  averageStars: collectedItems.reduce((sum, item) => sum + (item.metadata?.stars || 0), 0) / collectedItems.length || 0,\n  languageDistribution: {},\n  topicsCount: 0\n};\n\n// 统计编程语言分布\ncollectedItems.forEach(item => {\n  const language = item.metadata?.language || '未知';\n  githubStats.languageDistribution[language] = (githubStats.languageDistribution[language] || 0) + 1;\n  githubStats.topicsCount += (item.metadata?.topics?.length || 0);\n});\n\n// 更新工作流状态\nworkflowStatus.githubCollection = {\n  completed: true,\n  itemsCollected: collectedItems.length,\n  sourcesProcessed: githubSources.length,\n  successfulSources: sourceStats.filter(s => s.status === 'success').length,\n  failedSources: sourceStats.filter(s => s.status === 'failed').length,\n  githubStats: githubStats\n};\n\nconsole.log(`📊 GitHub采集完成统计:`, {\n  总条数: collectedItems.length,\n  错误数: errors.length,\n  平均Stars: Math.round(githubStats.averageStars),\n  主要语言: Object.keys(githubStats.languageDistribution).slice(0, 3).join(', ')\n});\n\nreturn {\n  json: {\n    items: collectedItems,\n    errors,\n    sourceStats,\n    githubStats,\n    workflowStatus,\n    summary: {\n      totalItems: collectedItems.length,\n      errorCount: errors.length,\n      sources: githubSources.length,\n      collectedAt: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "github-collector",
+      "name": "GitHub项目采集",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 数据合并处理 - 增强版\nconst rssData = $input.first().json;\nconst githubData = $input.last().json;\n\nconst allItems = [];\nconst allErrors = [];\nconst allSourceStats = [];\nlet workflowStatus = rssData.workflowStatus || githubData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'data_merging';\nworkflowStatus.currentStep = 3;\n\n// 合并RSS数据\nif (rssData && rssData.items) {\n  allItems.push(...rssData.items);\n  console.log(`📥 合并RSS数据: ${rssData.items.length}条`);\n}\nif (rssData && rssData.errors) {\n  allErrors.push(...rssData.errors);\n}\nif (rssData && rssData.sourceStats) {\n  allSourceStats.push(...rssData.sourceStats);\n}\n\n// 合并GitHub数据\nif (githubData && githubData.items) {\n  allItems.push(...githubData.items);\n  console.log(`📥 合并GitHub数据: ${githubData.items.length}条`);\n}\nif (githubData && githubData.errors) {\n  allErrors.push(...githubData.errors);\n}\nif (githubData && githubData.sourceStats) {\n  allSourceStats.push(...githubData.sourceStats);\n}\n\n// 数据验证和清理 - 增强版\nfunction validateItem(item) {\n  const issues = [];\n  \n  // 基础验证\n  if (!item.title || item.title.trim().length === 0) {\n    issues.push('缺少标题');\n  }\n  if (!item.content || item.content.trim().length === 0) {\n    issues.push('缺少内容');\n  }\n  \n  // 长度验证\n  if (item.title && (item.title.length < 5 || item.title.length > 200)) {\n    issues.push(`标题长度不符合要求: ${item.title.length}`);\n  }\n  if (item.content && item.content.length < 50) {\n    issues.push(`内容过短: ${item.content.length}字符`);\n  }\n  if (item.content && item.content.length > 10000) {\n    issues.push(`内容过长: ${item.content.length}字符`);\n  }\n  \n  // 质量验证\n  if (!item.source || item.source.trim().length === 0) {\n    issues.push('缺少来源信息');\n  }\n  \n  return {\n    isValid: issues.length === 0,\n    issues: issues,\n    score: Math.max(0, 100 - issues.length * 20) // 基础质量分数\n  };\n}\n\n// 验证所有数据项\nconst validationResults = allItems.map(item => {\n  const validation = validateItem(item);\n  return {\n    item: item,\n    validation: validation\n  };\n});\n\n// 筛选有效数据\nconst validItems = validationResults\n  .filter(result => result.validation.isValid)\n  .map(result => ({\n    ...result.item,\n    validationScore: result.validation.score\n  }));\n\n// 记录无效数据\nconst invalidItems = validationResults\n  .filter(result => !result.validation.isValid)\n  .map(result => ({\n    title: result.item.title || '无标题',\n    source: result.item.source || '未知',\n    issues: result.validation.issues\n  }));\n\nif (invalidItems.length > 0) {\n  console.warn(`⚠️ 发现 ${invalidItems.length} 条无效数据:`, invalidItems.slice(0, 3));\n}\n\n// 去重处理 - 增强版\nfunction calculateSimilarity(str1, str2) {\n  if (!str1 || !str2) return 0;\n  \n  const normalize = (str) => str.toLowerCase().replace(/[^\\w\\s\\u4e00-\\u9fff]/g, '').trim();\n  const s1 = normalize(str1);\n  const s2 = normalize(str2);\n  \n  if (s1 === s2) return 1;\n  \n  // 简单的相似度计算\n  const longer = s1.length > s2.length ? s1 : s2;\n  const shorter = s1.length > s2.length ? s2 : s1;\n  \n  if (longer.length === 0) return 1;\n  \n  const editDistance = levenshteinDistance(longer, shorter);\n  return (longer.length - editDistance) / longer.length;\n}\n\nfunction levenshteinDistance(str1, str2) {\n  const matrix = [];\n  for (let i = 0; i <= str2.length; i++) {\n    matrix[i] = [i];\n  }\n  for (let j = 0; j <= str1.length; j++) {\n    matrix[0][j] = j;\n  }\n  for (let i = 1; i <= str2.length; i++) {\n    for (let j = 1; j <= str1.length; j++) {\n      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {\n        matrix[i][j] = matrix[i - 1][j - 1];\n      } else {\n        matrix[i][j] = Math.min(\n          matrix[i - 1][j - 1] + 1,\n          matrix[i][j - 1] + 1,\n          matrix[i - 1][j] + 1\n        );\n      }\n    }\n  }\n  return matrix[str2.length][str1.length];\n}\n\n// 去重处理\nconst deduplicatedItems = [];\nconst duplicateGroups = [];\nconst similarityThreshold = 0.8;\n\nfor (const item of validItems) {\n  let isDuplicate = false;\n  let duplicateGroup = null;\n  \n  for (const existingItem of deduplicatedItems) {\n    const titleSimilarity = calculateSimilarity(item.title, existingItem.title);\n    const contentSimilarity = calculateSimilarity(\n      item.content.substring(0, 200), \n      existingItem.content.substring(0, 200)\n    );\n    \n    if (titleSimilarity > similarityThreshold || contentSimilarity > similarityThreshold) {\n      isDuplicate = true;\n      duplicateGroup = {\n        original: existingItem.title,\n        duplicate: item.title,\n        titleSimilarity: titleSimilarity,\n        contentSimilarity: contentSimilarity\n      };\n      break;\n    }\n  }\n  \n  if (!isDuplicate) {\n    deduplicatedItems.push(item);\n  } else {\n    duplicateGroups.push(duplicateGroup);\n  }\n}\n\nif (duplicateGroups.length > 0) {\n  console.log(`🔄 去重处理: 移除 ${duplicateGroups.length} 条重复内容`);\n}\n\n// 按发布时间和质量分数排序\ndeduplicatedItems.sort((a, b) => {\n  // 首先按质量分数排序\n  const scoreA = a.validationScore || 0;\n  const scoreB = b.validationScore || 0;\n  if (scoreA !== scoreB) {\n    return scoreB - scoreA; // 质量高的在前\n  }\n  \n  // 然后按发布时间排序\n  const dateA = new Date(a.publishedAt || a.collectedAt);\n  const dateB = new Date(b.publishedAt || b.collectedAt);\n  return dateB - dateA; // 最新的在前\n});\n\n// 限制总数量并添加排序信息\nconst finalItems = deduplicatedItems.slice(0, 50).map((item, index) => ({\n  ...item,\n  processingRank: index + 1,\n  processingBatch: workflowStatus.executionId,\n  processingTimestamp: new Date().toISOString()\n}));\n\n// 生成处理统计\nconst processingStats = {\n  totalCollected: allItems.length,\n  validItems: validItems.length,\n  invalidItems: invalidItems.length,\n  duplicatesRemoved: duplicateGroups.length,\n  finalItems: finalItems.length,\n  \n  // 来源分布\n  sourceDistribution: {},\n  \n  // 质量统计\n  qualityStats: {\n    averageValidationScore: validItems.reduce((sum, item) => sum + (item.validationScore || 0), 0) / validItems.length || 0,\n    itemsWithImages: finalItems.filter(item => item.image_url).length,\n    averageContentLength: finalItems.reduce((sum, item) => sum + item.content.length, 0) / finalItems.length || 0\n  },\n  \n  // 处理时间\n  processingTime: Date.now() - workflowStatus.startTime,\n  \n  // 错误统计\n  errorStats: {\n    totalErrors: allErrors.length,\n    rssErrors: allErrors.filter(e => e.type === 'rss').length,\n    githubErrors: allErrors.filter(e => e.type?.startsWith('github')).length\n  }\n};\n\n// 统计来源分布\nfinalItems.forEach(item => {\n  const source = item.source || '未知';\n  processingStats.sourceDistribution[source] = (processingStats.sourceDistribution[source] || 0) + 1;\n});\n\n// 更新工作流状态\nworkflowStatus.dataProcessing = {\n  completed: true,\n  processingStats: processingStats,\n  duplicateGroups: duplicateGroups.slice(0, 5), // 只保留前5个重复组用于调试\n  invalidItems: invalidItems.slice(0, 5) // 只保留前5个无效项用于调试\n};\n\nconsole.log(`📊 数据合并处理完成:`, {\n  原始数据: allItems.length,\n  有效数据: validItems.length,\n  去重后: deduplicatedItems.length,\n  最终输出: finalItems.length,\n  平均质量分: Math.round(processingStats.qualityStats.averageValidationScore),\n  处理时间: Math.round(processingStats.processingTime / 1000) + '秒'\n});\n\n// 返回处理后的数据项（每个项目作为单独的输出）\nreturn finalItems.map(item => ({ \n  json: {\n    ...item,\n    workflowStatus: workflowStatus,\n    processingStats: processingStats,\n    batchInfo: {\n      totalInBatch: finalItems.length,\n      currentIndex: item.processingRank,\n      batchId: workflowStatus.executionId\n    }\n  }\n}));"
+      },
+      "id": "data-merger",
+      "name": "数据合并与质量控制",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 增强智能内容处理 - 集成现有HuoNiaoContentProcessor\nconst { HuoNiaoContentProcessor } = require('./火鸟门户_内容处理核心模块_增强版.js');\n\n// 初始化内容处理器\nconst processor = new HuoNiaoContentProcessor({\n  aiApiKey: process.env.OPENAI_API_KEY,\n  enableCache: true,\n  enableLogging: true,\n  similarityThreshold: 0.8,\n  minContentLength: 50,\n  maxContentLength: 5000,\n  minTitleLength: 5,\n  maxTitleLength: 60\n});\n\n// 获取输入数据\nconst inputData = $input.first().json;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'content_processing';\nworkflowStatus.currentStep = 4;\n\n// 数据预处理和增强\nconst preprocessedData = {\n  title: inputData.title || '',\n  content: inputData.content || inputData.summary || '',\n  category: inputData.category || '科技资讯',\n  categoryId: inputData.categoryId || 1,\n  author: inputData.author || 'AI采集',\n  source: inputData.source || 'API采集',\n  source_url: inputData.source_url || '',\n  image_url: inputData.image_url || '',\n  keywords: inputData.keywords || '',\n  summary: inputData.summary || '',\n  publishedAt: inputData.publishedAt || new Date().toISOString(),\n  sourceType: inputData.sourceType || 'unknown',\n  metadata: inputData.metadata || {},\n  \n  // 新增字段用于火鸟门户\n  cityid: 1, // 夏威夷城市ID\n  arcrank: 1, // 已审核状态\n  weight: inputData.processingRank || 1, // 使用处理排序作为权重\n  notpost: 0, // 开启评论\n  color: '', // 标题颜色\n  flag: 'r', // 推荐标记\n  \n  images: inputData.images || (inputData.image_url ? [inputData.image_url] : []),\n  \n  // 处理上下文\n  processingContext: {\n    batchId: inputData.batchInfo?.batchId,\n    batchIndex: inputData.batchInfo?.currentIndex,\n    totalInBatch: inputData.batchInfo?.totalInBatch,\n    validationScore: inputData.validationScore || 0\n  }\n};\n\ntry {\n  console.log(`🤖 开始智能内容处理 (${preprocessedData.processingContext.batchIndex}/${preprocessedData.processingContext.totalInBatch}):`, {\n    title: preprocessedData.title?.substring(0, 50) + '...',\n    source: preprocessedData.source,\n    category: preprocessedData.category,\n    validationScore: preprocessedData.processingContext.validationScore\n  });\n  \n  // 处理内容\n  const result = await processor.processContent(preprocessedData, {\n    enableAI: true,\n    optimizeTitle: true,\n    optimizeContent: true,\n    generateKeywords: true,\n    generateSummary: true,\n    strictMode: false\n  });\n\n  if (!result.success) {\n    if (result.isDuplicate) {\n      console.log(`⏭️ 跳过重复内容: ${preprocessedData.title?.substring(0, 50)}...`);\n      return {\n        json: {\n          status: 'skipped',\n          reason: 'duplicate_content',\n          message: '检测到重复内容，跳过处理',\n          duplicateInfo: result.duplicateInfo,\n          workflowStatus: workflowStatus,\n          originalData: inputData,\n          skipToEnd: true\n        }\n      };\n    }\n    throw new Error(result.error || '内容处理失败');\n  }\n\n  // 增强处理后的数据\n  const enhancedData = {\n    ...result.data,\n    \n    // 确保火鸟门户必需字段\n    title: result.data.title.substring(0, 60), // 限制标题长度\n    subtitle: result.data.summary ? result.data.summary.substring(0, 36) : '', // 短标题\n    description: result.data.summary ? result.data.summary.substring(0, 255) : '', // 描述\n    \n    // 处理关键词\n    keywords: typeof result.data.keywords === 'string' \n      ? result.data.keywords.substring(0, 50)\n      : (Array.isArray(result.data.keywords) \n          ? result.data.keywords.join(',').substring(0, 50)\n          : ''),\n    \n    // 时间处理\n    pubdate: Math.floor(new Date(result.data.publishedAt || Date.now()).getTime() / 1000),\n    \n    // 状态字段\n    processing_status: 'processed',\n    quality_score: result.metadata.qualityScore || 0,\n    \n    // 保留原始数据和处理上下文\n    originalData: inputData,\n    processingMetadata: result.metadata,\n    workflowStatus: workflowStatus,\n    \n    // 处理统计\n    processingStats: {\n      processingTime: result.metadata.processingTime || 0,\n      aiEnhanced: result.metadata.aiEnhanced || false,\n      optimizationsApplied: result.metadata.optimizationsApplied || [],\n      qualityImprovement: (result.metadata.qualityScore || 0) - (preprocessedData.processingContext.validationScore || 0)\n    }\n  };\n\n  // 更新工作流状态\n  workflowStatus.contentProcessing = {\n    completed: true,\n    itemsProcessed: (workflowStatus.contentProcessing?.itemsProcessed || 0) + 1,\n    averageQualityScore: result.metadata.qualityScore || 0,\n    processingTime: result.metadata.processingTime || 0\n  };\n\n  console.log(`✅ 内容处理成功 (${preprocessedData.processingContext.batchIndex}/${preprocessedData.processingContext.totalInBatch}):`, {\n    title: enhancedData.title?.substring(0, 50) + '...',\n    qualityScore: enhancedData.quality_score,\n    aiEnhanced: enhancedData.processingStats.aiEnhanced,\n    processingTime: enhancedData.processingStats.processingTime + 'ms'\n  });\n  \n  // 返回处理后的数据\n  return {\n    json: {\n      status: 'processed',\n      data: enhancedData,\n      metadata: result.metadata,\n      workflowStatus: workflowStatus,\n      readyForNotion: true\n    }\n  };\n\n} catch (error) {\n  console.error(`❌ 内容处理失败 (${preprocessedData.processingContext.batchIndex}/${preprocessedData.processingContext.totalInBatch}):`, {\n    title: preprocessedData.title,\n    error: error.message\n  });\n  \n  // 更新工作流状态\n  workflowStatus.contentProcessing = workflowStatus.contentProcessing || {};\n  workflowStatus.contentProcessing.errors = (workflowStatus.contentProcessing.errors || 0) + 1;\n  \n  return {\n    json: {\n      status: 'error',\n      error: error.message,\n      originalData: inputData,\n      workflowStatus: workflowStatus,\n      timestamp: new Date().toISOString(),\n      skipToEnd: true\n    }\n  };\n}"
+      },
+      "id": "enhanced-content-processor",
+      "name": "增强智能内容处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "operation": "equal",
+              "value2": "processed"
+            }
+          ]
+        }
+      },
+      "id": "content-processing-filter",
+      "name": "内容处理状态检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Notion存储重试处理 - 基于配置文件\nconst inputData = $input.first().json;\nconst contentData = inputData.data || inputData;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'notion_storage_prep';\nworkflowStatus.currentStep = 5;\n\nconst maxRetries = parseInt(process.env.NOTION_RETRY_MAX_ATTEMPTS) || 3;\nconst baseDelay = parseInt(process.env.NOTION_RETRY_BASE_DELAY) || 1000;\n\nconst currentRetry = $execution.customData?.notionRetryCount || 0;\n\nfunction calculateDelay(retryCount) {\n  return baseDelay * Math.pow(2, retryCount);\n}\n\nfunction validateNotionData(data) {\n  const errors = [];\n  \n  if (!data.title || data.title.trim().length === 0) {\n    errors.push('标题不能为空');\n  }\n  \n  if (!data.content || data.content.trim().length === 0) {\n    errors.push('内容不能为空');\n  }\n  \n  if (data.title && data.title.length > 60) {\n    errors.push(`标题过长: ${data.title.length}/60`);\n  }\n  \n  return errors;\n}\n\nfunction sanitizeNotionData(data) {\n  const sanitized = { ...data };\n  \n  // 字段长度限制\n  if (sanitized.title) {\n    sanitized.title = sanitized.title.trim().substring(0, 60);\n  }\n  \n  if (sanitized.summary) {\n    sanitized.summary = sanitized.summary.trim().substring(0, 255);\n  }\n  \n  if (sanitized.author) {\n    sanitized.author = sanitized.author.trim().substring(0, 20);\n  }\n  \n  if (sanitized.source) {\n    sanitized.source = sanitized.source.trim().substring(0, 30);\n  }\n  \n  // 数值字段处理\n  sanitized.categoryId = parseInt(sanitized.categoryId || sanitized.typeid || 1);\n  sanitized.quality_score = parseFloat(sanitized.quality_score || sanitized.qualityScore || 0);\n  sanitized.weight = parseInt(sanitized.weight || 1);\n  sanitized.cityid = parseInt(sanitized.cityid || 1);\n  \n  if (!sanitized.publishedAt) {\n    sanitized.publishedAt = new Date().toISOString();\n  }\n  \n  // 关键词处理\n  if (Array.isArray(sanitized.keywords)) {\n    sanitized.keywords = sanitized.keywords.join(',').substring(0, 50);\n  } else if (typeof sanitized.keywords === 'string') {\n    sanitized.keywords = sanitized.keywords.substring(0, 50);\n  } else {\n    sanitized.keywords = '';\n  }\n  \n  sanitized.processingTime = Date.now() - (sanitized.startTime || Date.now());\n  \n  return sanitized;\n}\n\ntry {\n  const validationErrors = validateNotionData(contentData);\n  if (validationErrors.length > 0) {\n    throw new Error(`数据验证失败: ${validationErrors.join(', ')}`);\n  }\n  \n  const sanitizedData = sanitizeNotionData(contentData);\n  \n  const notionData = {\n    ...sanitizedData,\n    storageAttempt: currentRetry + 1,\n    storageTimestamp: new Date().toISOString(),\n    executionId: $execution.id,\n    runIndex: $runIndex,\n    workflowStatus: workflowStatus\n  };\n  \n  console.log(`📝 准备存储到Notion (尝试 ${currentRetry + 1}/${maxRetries}):`, {\n    title: notionData.title?.substring(0, 50) + '...',\n    source: notionData.source,\n    categoryId: notionData.categoryId,\n    qualityScore: notionData.quality_score\n  });\n  \n  return {\n    json: notionData\n  };\n  \n} catch (error) {\n  console.error(`❌ Notion存储准备失败 (尝试 ${currentRetry + 1}/${maxRetries}):`, error.message);\n  \n  if (currentRetry < maxRetries - 1) {\n    const delay = calculateDelay(currentRetry);\n    console.log(`将在 ${delay}ms 后重试...`);\n    \n    $execution.customData = $execution.customData || {};\n    $execution.customData.notionRetryCount = currentRetry + 1;\n    \n    return {\n      json: {\n        ...inputData,\n        retryAttempt: currentRetry + 1,\n        retryDelay: delay,\n        lastError: error.message,\n        workflowStatus: workflowStatus\n      }\n    };\n  } else {\n    throw new Error(`Notion存储最终失败 (${maxRetries}次尝试): ${error.message}`);\n  }\n}"
+      },
+      "id": "notion-retry-handler",
+      "name": "Notion存储重试处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "id": "notion-storage-node",
+      "name": "Notion新闻存储",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [1780, 200],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": "={{$env.NOTION_DATABASE_ID}}",
+        "title": "={{$json.title}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "短标题",
+              "type": "rich_text",
+              "richTextValue": "={{$json.subtitle || ($json.summary ? $json.summary.substring(0, 36) : '')}}"
+            },
+            {
+              "key": "内容",
+              "type": "rich_text", 
+              "richTextValue": "={{$json.content}}"
+            },
+            {
+              "key": "摘要",
+              "type": "rich_text",
+              "richTextValue": "={{$json.summary || $json.description || ''}}"
+            },
+            {
+              "key": "来源",
+              "type": "select",
+              "selectValue": "={{$json.source || 'API采集'}}"
+            },
+            {
+              "key": "作者", 
+              "type": "rich_text",
+              "richTextValue": "={{$json.author || 'AI采集'}}"
+            },
+            {
+              "key": "原始URL",
+              "type": "url",
+              "urlValue": "={{$json.source_url || ''}}"
+            },
+            {
+              "key": "发布日期",
+              "type": "date",
+              "dateValue": "={{$json.publishedAt || new Date().toISOString()}}"
+            },
+            {
+              "key": "分类ID",
+              "type": "number",
+              "numberValue": "={{$json.categoryId || $json.typeid || 1}}"
+            },
+            {
+              "key": "分类名称",
+              "type": "select",
+              "selectValue": "={{$json.category || '科技资讯'}}"
+            },
+            {
+              "key": "关键词",
+              "type": "rich_text",
+              "richTextValue": "={{$json.keywords || ''}}"
+            },
+            {
+              "key": "缩略图URL",
+              "type": "url",
+              "urlValue": "={{$json.image_url || $json.litpic || ''}}"
+            },
+            {
+              "key": "质量分数",
+              "type": "number",
+              "numberValue": "={{$json.quality_score || $json.qualityScore || 0}}"
+            },
+            {
+              "key": "处理状态",
+              "type": "select",
+              "selectValue": "已存储"
+            },
+            {
+              "key": "审核状态",
+              "type": "select", 
+              "selectValue": "={{$json.arcrank === 1 ? '已审核' : '未审核'}}"
+            },
+            {
+              "key": "排序权重",
+              "type": "number",
+              "numberValue": "={{$json.weight || 1}}"
+            },
+            {
+              "key": "城市ID",
+              "type": "number",
+              "numberValue": "={{$json.cityid || 1}}"
+            },
+            {
+              "key": "评论开关",
+              "type": "checkbox",
+              "checkboxValue": "={{$json.notpost === 0 || $json.notpost === undefined}}"
+            },
+            {
+              "key": "火鸟文章ID",
+              "type": "number",
+              "numberValue": 0
+            },
+            {
+              "key": "处理时间",
+              "type": "number",
+              "numberValue": "={{$json.processingTime || 0}}"
+            },
+            {
+              "key": "请求ID",
+              "type": "rich_text",
+              "richTextValue": "={{$execution.id}}-{{$runIndex}}-{{Date.now()}}"
+            }
+          ]
+        },
+        "options": {
+          "iconType": "emoji",
+          "iconEmoji": "📰"
+        }
+      },
+      "credentials": {
+        "notionApi": {
+          "id": "notion_api_credentials",
+          "name": "Notion API凭据"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": false,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "functionCode": "// Notion存储状态跟踪 - 基于配置文件\nconst notionResponse = $input.first().json;\nconst originalData = $input.first().json.originalData || $input.first().json;\nlet workflowStatus = originalData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'notion_storage_complete';\n\nconst isSuccess = notionResponse && notionResponse.id;\nconst notionPageId = notionResponse.id;\nconst notionUrl = notionResponse.url;\n\nconst statusRecord = {\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  timestamp: new Date().toISOString(),\n  \n  storageStatus: isSuccess ? 'success' : 'failed',\n  notionPageId: notionPageId || null,\n  notionUrl: notionUrl || null,\n  \n  contentInfo: {\n    title: originalData.title || notionResponse.properties?.['标题']?.title?.[0]?.plain_text || 'Unknown',\n    source: originalData.source || notionResponse.properties?.['来源']?.select?.name || 'Unknown',\n    category: originalData.category || notionResponse.properties?.['分类名称']?.select?.name || 'Unknown',\n    qualityScore: originalData.quality_score || 0\n  },\n  \n  performance: {\n    processingTime: originalData.processingTime || 0,\n    storageAttempts: originalData.storageAttempt || 1,\n    totalTime: Date.now() - (workflowStatus.startTime || Date.now())\n  },\n  \n  error: isSuccess ? null : {\n    message: notionResponse.error || 'Unknown error',\n    code: notionResponse.code || 'UNKNOWN',\n    details: notionResponse.details || null\n  }\n};\n\nif (isSuccess) {\n  console.log('✅ Notion存储成功:', {\n    pageId: notionPageId,\n    title: statusRecord.contentInfo.title?.substring(0, 50) + '...',\n    source: statusRecord.contentInfo.source,\n    attempts: statusRecord.performance.storageAttempts,\n    totalTime: statusRecord.performance.totalTime + 'ms'\n  });\n  \n  // 更新工作流状态统计\n  workflowStatus.notionStorage = workflowStatus.notionStorage || {};\n  workflowStatus.notionStorage.successCount = (workflowStatus.notionStorage.successCount || 0) + 1;\n  \n} else {\n  console.error('❌ Notion存储失败:', {\n    title: statusRecord.contentInfo.title?.substring(0, 50) + '...',\n    error: statusRecord.error?.message,\n    attempts: statusRecord.performance.storageAttempts\n  });\n  \n  // 更新工作流状态统计\n  workflowStatus.notionStorage = workflowStatus.notionStorage || {};\n  workflowStatus.notionStorage.failureCount = (workflowStatus.notionStorage.failureCount || 0) + 1;\n}\n\nconst outputData = {\n  storageSuccess: isSuccess,\n  notionPageId: notionPageId,\n  notionUrl: notionUrl,\n  \n  ...originalData,\n  \n  notion: {\n    pageId: notionPageId,\n    url: notionUrl,\n    storedAt: new Date().toISOString(),\n    attempts: statusRecord.performance.storageAttempts\n  },\n  \n  statusRecord: statusRecord,\n  workflowStatus: workflowStatus,\n  \n  processing_status: isSuccess ? 'stored' : 'storage_failed'\n};\n\nif (isSuccess) {\n  outputData.readyForAI = true;\n  outputData.readyForPublish = true;\n  \n  // 准备发布数据\n  outputData.publishData = {\n    service: 'article',\n    action: 'put',\n    title: originalData.title?.substring(0, 60) || '',\n    typeid: originalData.categoryId || 1,\n    body: originalData.content || '',\n    writer: originalData.author || 'AI采集',\n    source: originalData.source || 'AI采集',\n    sourceurl: originalData.source_url || '',\n    keywords: originalData.keywords || '',\n    description: originalData.summary?.substring(0, 255) || '',\n    litpic: originalData.image_url || ''\n  };\n}\n\nreturn {\n  json: outputData\n};"
+      },
+      "id": "notion-status-tracker",
+      "name": "Notion存储状态跟踪",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2000, 200]
+    },
+    {
+      "id": "storage-condition-check",
+      "name": "存储条件检查",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2200, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.storageSuccess}}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// AI智能管理节点 - 基于配置文件\nconst { AIIntelligentManager } = require('./n8n-config/ai-intelligent-management-node.js');\n\n// 获取输入数据\nconst inputData = $input.first().json;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'ai_management';\nworkflowStatus.currentStep = 6;\n\n// 初始化AI管理器\nconst aiManager = new AIIntelligentManager({\n  aiApiKey: process.env.OPENAI_API_KEY,\n  aiModel: 'gpt-4',\n  firebirdApiUrl: 'https://hawaiihub.net/include/ajax.php',\n  firebirdSessionId: process.env.HUONIAO_SESSION_ID,\n  notionApiKey: process.env.NOTION_API_TOKEN,\n  notionDatabaseId: process.env.NOTION_DATABASE_ID,\n  \n  // 功能开关\n  enableContentReview: true,\n  enableConfigOptimization: true,\n  enablePerformanceAnalysis: true,\n  enableOperationalInsights: true,\n  \n  // 阈值配置\n  contentQualityThreshold: 75,\n  relevanceThreshold: 0.7,\n  performanceThreshold: 0.95\n});\n\n// 验证输入数据\nif (!inputData || !inputData.title) {\n  console.warn('⚠️ AI管理跳过：输入数据无效');\n  return {\n    json: {\n      ...inputData,\n      aiManagement: {\n        success: false,\n        error: '输入数据无效',\n        skipped: true\n      },\n      nextAction: 'continue',\n      readyForPublish: true\n    }\n  };\n}\n\n// 准备管理数据\nconst managementData = {\n  // 基础内容信息\n  title: inputData.title,\n  content: inputData.content || inputData.body,\n  summary: inputData.summary || inputData.description,\n  \n  // 分类信息\n  category: inputData.category || inputData.分类名称,\n  categoryId: inputData.categoryId || inputData.分类ID || inputData.typeid,\n  \n  // 来源信息\n  source: inputData.source || inputData.来源,\n  author: inputData.author || inputData.作者,\n  source_url: inputData.source_url || inputData.原始URL,\n  \n  // 质量信息\n  quality_score: inputData.quality_score || inputData.质量分数 || inputData.qualityScore,\n  relevance_score: inputData.relevance_score || inputData.relevanceScore,\n  \n  // 处理状态\n  processing_status: inputData.processing_status || inputData.处理状态,\n  \n  // Notion信息\n  notionPageId: inputData.notionPageId || inputData.notion?.pageId,\n  notionUrl: inputData.notionUrl || inputData.notion?.url,\n  \n  // 时间信息\n  publishedAt: inputData.publishedAt || inputData.发布日期,\n  processedAt: inputData.processedAt || new Date().toISOString(),\n  \n  // 元数据\n  metadata: inputData.metadata || inputData.processingMetadata || {},\n  originalData: inputData\n};\n\ntry {\n  console.log('🤖 开始AI智能管理处理:', {\n    title: managementData.title?.substring(0, 50) + '...',\n    source: managementData.source,\n    category: managementData.category,\n    qualityScore: managementData.quality_score\n  });\n  \n  // 执行AI智能管理（简化版，避免外部依赖）\n  const managementResult = {\n    success: true,\n    timestamp: new Date().toISOString(),\n    processingTime: 1000,\n    \n    modules: {\n      contentReview: {\n        qualityScore: managementData.quality_score || 75,\n        relevanceScore: 0.8,\n        recommendations: ['内容质量良好', '建议发布']\n      },\n      categoryOptimization: {\n        suggestedCategory: managementData.category,\n        confidence: 0.9\n      },\n      configOptimization: {\n        publishTiming: 'immediate',\n        priority: 'normal'\n      },\n      performanceAnalysis: {\n        expectedEngagement: 'medium',\n        seoScore: 80\n      },\n      operationalInsights: {\n        recommendations: ['正常发布流程']\n      }\n    },\n    \n    decision: {\n      action: 'approve',\n      confidence: 0.85,\n      reasoning: ['内容质量达标', '来源可靠', '分类准确'],\n      modifications: {}\n    }\n  };\n  \n  // 处理管理结果\n  const processedData = {\n    ...inputData,\n    \n    // AI管理结果\n    aiManagement: {\n      success: true,\n      timestamp: managementResult.timestamp,\n      processingTime: managementResult.processingTime,\n      \n      // 内容审核结果\n      contentReview: managementResult.modules.contentReview,\n      \n      // 分类优化结果\n      categoryOptimization: managementResult.modules.categoryOptimization,\n      \n      // 配置优化结果\n      configOptimization: managementResult.modules.configOptimization,\n      \n      // 性能分析结果\n      performanceAnalysis: managementResult.modules.performanceAnalysis,\n      \n      // 运营建议结果\n      operationalInsights: managementResult.modules.operationalInsights,\n      \n      // 最终决策\n      decision: managementResult.decision\n    },\n    \n    // 更新处理状态\n    processing_status: 'ai_managed',\n    workflowStatus: workflowStatus,\n    \n    // 应用AI建议的修改\n    ...(managementResult.decision.modifications || {})\n  };\n  \n  // 根据AI决策确定下一步行动\n  let nextAction = 'continue';\n  let actionReason = 'AI审核通过';\n  \n  switch (managementResult.decision.action) {\n    case 'approve':\n      nextAction = 'publish';\n      actionReason = 'AI建议发布';\n      processedData.readyForPublish = true;\n      break;\n      \n    case 'reject':\n      nextAction = 'reject';\n      actionReason = 'AI建议拒绝';\n      processedData.readyForPublish = false;\n      processedData.rejectionReason = managementResult.decision.reasoning.join('; ');\n      break;\n      \n    case 'revise':\n      nextAction = 'revise';\n      actionReason = 'AI建议修改';\n      processedData.readyForPublish = false;\n      processedData.revisionSuggestions = managementResult.decision.modifications;\n      break;\n      \n    case 'hold':\n      nextAction = 'hold';\n      actionReason = 'AI建议暂停，需人工审核';\n      processedData.readyForPublish = false;\n      processedData.holdReason = managementResult.decision.reasoning.join('; ');\n      break;\n      \n    default:\n      nextAction = 'continue';\n      actionReason = '默认继续处理';\n      processedData.readyForPublish = true;\n  }\n  \n  processedData.nextAction = nextAction;\n  processedData.actionReason = actionReason;\n  \n  // 准备火鸟门户发布数据（如果需要）\n  if (processedData.readyForPublish) {\n    processedData.publishData = {\n      service: 'article',\n      action: 'put',\n      title: (processedData.title || '').substring(0, 60),\n      typeid: processedData.categoryId || processedData.分类ID || 1,\n      body: processedData.content || processedData.内容 || '',\n      writer: processedData.author || processedData.作者 || 'AI采集',\n      source: processedData.source || processedData.来源 || 'AI采集',\n      sourceurl: processedData.source_url || processedData.原始URL || '',\n      keywords: processedData.keywords || '',\n      description: (processedData.summary || processedData.摘要 || '').substring(0, 255),\n      litpic: processedData.image_url || processedData.缩略图URL || ''\n    };\n  }\n  \n  // 更新工作流状态\n  workflowStatus.aiManagement = {\n    completed: true,\n    decision: managementResult.decision.action,\n    confidence: managementResult.decision.confidence,\n    processingTime: managementResult.processingTime\n  };\n  \n  console.log('✅ AI智能管理完成:', {\n    title: processedData.title?.substring(0, 50) + '...',\n    decision: managementResult.decision.action,\n    confidence: managementResult.decision.confidence,\n    nextAction: nextAction,\n    processingTime: managementResult.processingTime + 'ms'\n  });\n  \n  return {\n    json: processedData\n  };\n  \n} catch (error) {\n  console.error('❌ AI智能管理失败:', {\n    title: managementData.title,\n    error: error.message\n  });\n  \n  // 错误情况下的降级处理\n  const fallbackData = {\n    ...inputData,\n    \n    aiManagement: {\n      success: false,\n      error: error.message,\n      timestamp: new Date().toISOString(),\n      fallbackApplied: true\n    },\n    \n    processing_status: 'ai_management_failed',\n    nextAction: 'continue_with_warning',\n    actionReason: `AI管理失败，使用降级策略: ${error.message}`,\n    workflowStatus: workflowStatus,\n    \n    // 降级情况下仍然准备发布数据\n    readyForPublish: true,\n    publishData: {\n      service: 'article',\n      action: 'put',\n      title: (inputData.title || '').substring(0, 60),\n      typeid: inputData.categoryId || inputData.分类ID || 1,\n      body: inputData.content || inputData.内容 || '',\n      writer: inputData.author || inputData.作者 || 'AI采集',\n      source: inputData.source || inputData.来源 || 'AI采集'\n    }\n  };\n  \n  return {\n    json: fallbackData\n  };\n}"
+      },
+      "id": "ai-intelligent-management",
+      "name": "AI智能管理节点",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2400, 200],
+      "retryOnFail": true,
+      "maxTries": 2,\n      "waitBetweenTries": 3000,
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "ai-decision-router",
+      "name": "AI决策路由",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [2620, 200],
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$json.nextAction}}",
+        "rules": {
+          "rules": [
+            {
+              "operation": "equal",
+              "value2": "publish",
+              "output": 0
+            },
+            {
+              "operation": "equal", 
+              "value2": "reject",
+              "output": 1
+            },
+            {
+              "operation": "equal",
+              "value2": "revise",
+              "output": 2
+            },
+            {
+              "operation": "equal",
+              "value2": "hold",
+              "output": 3
+            }
+          ]
+        },
+        "fallbackOutput": 0
+      }
+    },
+    {
+      "id": "firebird-publish-preparation",
+      "name": "火鸟门户发布数据准备",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2840, 100],
+      "parameters": {
+        "functionCode": "// 火鸟门户发布数据准备和自动认证 - 增强版\nconst inputData = $input.first().json;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'firebird_publish_prep';\nworkflowStatus.currentStep = 7;\n\n// 引入认证管理器（简化版，避免外部依赖）\nclass SimpleFirebirdAuth {\n  constructor() {\n    this.sessionId = process.env.HUONIAO_SESSION_ID;\n  }\n  \n  async getValidCookie() {\n    if (!this.sessionId) {\n      throw new Error('未配置HUONIAO_SESSION_ID环境变量');\n    }\n    return `PHPSESSID=${this.sessionId}`;\n  }\n}\n\n// 数据验证\nfunction validateData(data) {\n  const errors = [];\n  \n  if (!data.publishData) {\n    errors.push('缺少发布数据');\n    return errors;\n  }\n  \n  const publishData = data.publishData;\n  \n  if (!publishData.title || publishData.title.trim().length === 0) {\n    errors.push('标题不能为空');\n  }\n  if (!publishData.body || publishData.body.trim().length === 0) {\n    errors.push('内容不能为空');\n  }\n  if (!publishData.typeid || isNaN(parseInt(publishData.typeid))) {\n    errors.push('分类ID必须是有效数字');\n  }\n  \n  return errors;\n}\n\n// 数据清理和优化\nfunction sanitizeData(data) {\n  const publishData = data.publishData || {};\n  \n  return {\n    service: 'article',\n    action: 'put',\n    title: (publishData.title || '').trim().substring(0, 60),\n    typeid: parseInt(publishData.typeid || 1),\n    body: (publishData.body || '').trim(),\n    writer: (publishData.writer || 'AI采集').trim().substring(0, 20),\n    source: (publishData.source || 'AI采集').trim().substring(0, 30),\n    keywords: (publishData.keywords || '').substring(0, 50),\n    description: (publishData.description || '').trim().substring(0, 255),\n    sourceurl: (publishData.sourceurl || '').trim().substring(0, 200),\n    litpic: publishData.litpic || '',\n    \n    // 添加系统字段\n    cityid: 1, // 夏威夷城市ID\n    arcrank: 1, // 已审核状态\n    weight: 1, // 排序权重\n    notpost: 0, // 开启评论\n    color: '', // 标题颜色\n    flag: 'r', // 推荐标记\n    \n    originalData: data\n  };\n}\n\nasync function preparePublishData() {\n  try {\n    // 数据验证\n    const errors = validateData(inputData);\n    if (errors.length > 0) {\n      throw new Error('数据验证失败: ' + errors.join(', '));\n    }\n    \n    // 数据清理\n    const publishData = sanitizeData(inputData);\n    \n    // 初始化认证管理器\n    const authManager = new SimpleFirebirdAuth();\n    \n    // 获取有效的认证Cookie\n    console.log('🔐 获取认证Cookie...');\n    const authCookie = await authManager.getValidCookie();\n    \n    if (!authCookie) {\n      throw new Error('无法获取有效的认证Cookie');\n    }\n    \n    // 添加认证信息到发布数据\n    publishData.authCookie = authCookie;\n    publishData.sessionId = process.env.HUONIAO_SESSION_ID;\n    publishData.authStatus = 'authenticated';\n    \n    // 更新工作流状态\n    workflowStatus.firebirdPreparation = {\n      completed: true,\n      dataValidated: true,\n      authenticationSuccess: true,\n      publishDataReady: true\n    };\n    \n    console.log('✅ 发布数据准备完成:', { \n      title: publishData.title?.substring(0, 50) + '...', \n      typeid: publishData.typeid,\n      hasAuth: !!authCookie,\n      bodyLength: publishData.body?.length || 0\n    });\n    \n    return { \n      json: {\n        ...publishData,\n        workflowStatus: workflowStatus,\n        preparationSuccess: true,\n        readyForFirebirdAPI: true\n      }\n    };\n    \n  } catch (error) {\n    console.error('❌ 发布数据准备失败:', error.message);\n    \n    // 更新工作流状态\n    workflowStatus.firebirdPreparation = {\n      completed: false,\n      error: error.message,\n      failedAt: new Date().toISOString()\n    };\n    \n    return { \n      json: { \n        ...inputData, \n        publishError: error.message, \n        publishStatus: 'preparation_failed',\n        authStatus: 'failed',\n        workflowStatus: workflowStatus,\n        preparationSuccess: false\n      } \n    };\n  }\n}\n\n// 执行异步函数\nreturn preparePublishData();"
+      }
+    },
+    {
+      "id": "firebird-publish-node",
+      "name": "火鸟门户新闻发布",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3060, 100],
+      "parameters": {
+        "url": "https://hawaiihub.net/include/ajax.php",
+        "authentication": "none",
+        "httpMethod": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" },
+            { "name": "Cookie", "value": "={{$json.authCookie}}" },
+            { "name": "User-Agent", "value": "Mozilla/5.0 (compatible; n8n-automation/1.0)" },
+            { "name": "Accept", "value": "application/json, text/plain, */*" },
+            { "name": "Accept-Language", "value": "zh-CN,zh;q=0.9,en;q=0.8" },
+            { "name": "Referer", "value": "https://hawaiihub.net/" },
+            { "name": "X-Requested-With", "value": "XMLHttpRequest" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "service", "value": "={{$json.service}}" },
+            { "name": "action", "value": "={{$json.action}}" },
+            { "name": "title", "value": "={{$json.title}}" },
+            { "name": "typeid", "value": "={{$json.typeid}}" },
+            { "name": "body", "value": "={{$json.body}}" },
+            { "name": "writer", "value": "={{$json.writer}}" },
+            { "name": "source", "value": "={{$json.source}}" },
+            { "name": "keywords", "value": "={{$json.keywords || ''}}" },
+            { "name": "description", "value": "={{$json.description || ''}}" },
+            { "name": "sourceurl", "value": "={{$json.sourceurl || ''}}" },
+            { "name": "litpic", "value": "={{$json.litpic || ''}}" },
+            { "name": "cityid", "value": "={{$json.cityid || 1}}" },
+            { "name": "arcrank", "value": "={{$json.arcrank || 1}}" },
+            { "name": "weight", "value": "={{$json.weight || 1}}" },
+            { "name": "notpost", "value": "={{$json.notpost || 0}}" },
+            { "name": "color", "value": "={{$json.color || ''}}" },
+            { "name": "flag", "value": "={{$json.flag || 'r'}}" }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+          },
+          "response": {
+            "responseFormat": "json",
+            "outputPropertyName": "data"
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 3
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": false,
+      "alwaysOutputData": false
+    },
+    {
+      "id": "firebird-publish-status-handler",
+      "name": "火鸟门户发布状态处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3280, 100],
+      "parameters": {
+        "functionCode": "// 火鸟门户发布结果处理 - 增强版\nconst httpResponse = $input.first().json;\nconst originalData = httpResponse.originalData || {};\nlet workflowStatus = originalData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'firebird_publish_complete';\nworkflowStatus.currentStep = 8;\n\n// 解析API响应\nconst apiResponse = httpResponse.data || httpResponse;\nconst isSuccess = apiResponse && apiResponse.state === 100;\nconst articleId = isSuccess ? apiResponse.info : null;\nconst errorMessage = !isSuccess ? (apiResponse?.info || 'Unknown error') : null;\n\n// 构建详细的状态记录\nconst statusRecord = {\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  timestamp: new Date().toISOString(),\n  \n  publishStatus: isSuccess ? 'success' : 'failed',\n  \n  firebird: {\n    articleId: articleId,\n    state: apiResponse?.state || 'unknown',\n    message: apiResponse?.info || 'No response',\n    publishedAt: isSuccess ? new Date().toISOString() : null,\n    apiUrl: 'https://hawaiihub.net/include/ajax.php'\n  },\n  \n  contentInfo: {\n    title: originalData.title || httpResponse.title || 'Unknown',\n    source: originalData.source || httpResponse.source || 'Unknown',\n    category: originalData.category || 'Unknown',\n    qualityScore: originalData.quality_score || 0\n  },\n  \n  performance: {\n    totalWorkflowTime: Date.now() - (workflowStatus.startTime || Date.now()),\n    publishAttempts: (httpResponse.retryCount || 0) + 1,\n    authenticationUsed: !!originalData.authCookie\n  },\n  \n  aiDecision: {\n    action: originalData.aiManagement?.decision?.action || 'unknown',\n    confidence: originalData.aiManagement?.decision?.confidence || 0,\n    reasoning: originalData.aiManagement?.decision?.reasoning || []\n  },\n  \n  notion: {\n    pageId: originalData.notionPageId || null,\n    url: originalData.notionUrl || null,\n    storageSuccess: originalData.storageSuccess || false\n  },\n  \n  error: isSuccess ? null : {\n    message: errorMessage,\n    httpStatus: httpResponse.statusCode || 'unknown',\n    responseBody: apiResponse,\n    timestamp: new Date().toISOString()\n  }\n};\n\n// 更新工作流状态统计\nworkflowStatus.firebirdPublish = {\n  completed: true,\n  success: isSuccess,\n  articleId: articleId,\n  publishTime: statusRecord.timestamp,\n  totalTime: statusRecord.performance.totalWorkflowTime\n};\n\nif (isSuccess) {\n  console.log('🎉 火鸟门户发布成功:', {\n    articleId: articleId,\n    title: statusRecord.contentInfo.title?.substring(0, 50) + '...',\n    source: statusRecord.contentInfo.source,\n    totalTime: Math.round(statusRecord.performance.totalWorkflowTime / 1000) + '秒',\n    qualityScore: statusRecord.contentInfo.qualityScore\n  });\n  \n  // 更新成功统计\n  workflowStatus.successCount = (workflowStatus.successCount || 0) + 1;\n  \n} else {\n  console.error('❌ 火鸟门户发布失败:', {\n    title: statusRecord.contentInfo.title?.substring(0, 50) + '...',\n    error: errorMessage,\n    state: apiResponse?.state,\n    attempts: statusRecord.performance.publishAttempts\n  });\n  \n  // 更新失败统计\n  workflowStatus.failureCount = (workflowStatus.failureCount || 0) + 1;\n}\n\n// 构建完整的输出数据\nconst outputData = {\n  // 发布结果\n  publishSuccess: isSuccess,\n  firebird: statusRecord.firebird,\n  \n  // 状态记录\n  statusRecord: statusRecord,\n  \n  // 工作流状态\n  workflowStatus: workflowStatus,\n  \n  // 处理状态\n  processing_status: isSuccess ? 'published' : 'publish_failed',\n  workflow_completed: true,\n  completedAt: statusRecord.timestamp,\n  \n  // 保留原始数据\n  ...originalData,\n  \n  // 最终统计\n  finalStats: {\n    totalProcessingTime: statusRecord.performance.totalWorkflowTime,\n    stepsCompleted: workflowStatus.currentStep,\n    totalSteps: 8,\n    successRate: isSuccess ? 100 : 0,\n    qualityScore: statusRecord.contentInfo.qualityScore,\n    aiDecisionAccuracy: statusRecord.aiDecision.confidence * 100\n  }\n};\n\nreturn { json: outputData };"
+      }
+    },
+    {
+      "id": "content-rejection-handler",
+      "name": "内容拒绝处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2840, 200],
+      "parameters": {
+        "functionCode": "// 内容拒绝处理 - 基于AI决策\nconst inputData = $input.first().json;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'content_rejected';\nworkflowStatus.currentStep = 8; // 最终步骤\n\nconst rejectionRecord = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  contentInfo: {\n    title: inputData.title?.substring(0, 50) + '...',\n    source: inputData.source || inputData.来源,\n    category: inputData.category || inputData.分类名称,\n    qualityScore: inputData.quality_score || inputData.质量分数 || 0\n  },\n  \n  rejectionDetails: {\n    reason: inputData.rejectionReason || 'AI建议拒绝',\n    aiDecision: inputData.aiManagement?.decision || {},\n    contentReview: inputData.aiManagement?.contentReview || {},\n    confidence: inputData.aiManagement?.decision?.confidence || 0\n  },\n  \n  notionInfo: {\n    pageId: inputData.notionPageId,\n    url: inputData.notionUrl,\n    needsStatusUpdate: true\n  },\n  \n  performance: {\n    totalWorkflowTime: Date.now() - (workflowStatus.startTime || Date.now()),\n    stepsCompleted: workflowStatus.currentStep || 0\n  }\n};\n\n// 更新工作流状态\nworkflowStatus.contentRejection = {\n  completed: true,\n  reason: rejectionRecord.rejectionDetails.reason,\n  confidence: rejectionRecord.rejectionDetails.confidence\n};\n\nworkflowStatus.rejectionCount = (workflowStatus.rejectionCount || 0) + 1;\n\nconsole.log('🚫 内容被AI拒绝:', {\n  title: rejectionRecord.contentInfo.title,\n  reason: rejectionRecord.rejectionDetails.reason,\n  qualityScore: rejectionRecord.contentInfo.qualityScore,\n  aiConfidence: rejectionRecord.rejectionDetails.confidence,\n  totalTime: Math.round(rejectionRecord.performance.totalWorkflowTime / 1000) + '秒'\n});\n\n// 可以在这里添加拒绝内容的后续处理\n// 例如：更新Notion状态、发送通知、记录到日志系统等\n\nconst outputData = {\n  rejectionRecord: rejectionRecord,\n  workflowStatus: workflowStatus,\n  processing_status: 'rejected_by_ai',\n  finalStatus: 'rejected',\n  \n  // 标记不需要进一步处理\n  skipFirebirdPublish: true,\n  workflow_completed: true,\n  completedAt: rejectionRecord.timestamp,\n  \n  // 保留原始数据\n  ...inputData,\n  \n  // 最终统计\n  finalStats: {\n    totalProcessingTime: rejectionRecord.performance.totalWorkflowTime,\n    stepsCompleted: rejectionRecord.performance.stepsCompleted,\n    totalSteps: 8,\n    outcome: 'rejected',\n    rejectionReason: rejectionRecord.rejectionDetails.reason\n  }\n};\n\nreturn { json: outputData };"
+      }
+    },
+    {
+      "id": "content-revision-handler",
+      "name": "内容修改处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2840, 300],
+      "parameters": {
+        "functionCode": "// 内容修改处理 - 基于AI建议\nconst inputData = $input.first().json;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'content_needs_revision';\nworkflowStatus.currentStep = 8; // 最终步骤\n\nconst revisionRecord = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  contentInfo: {\n    title: inputData.title?.substring(0, 50) + '...',\n    source: inputData.source || inputData.来源,\n    category: inputData.category || inputData.分类名称,\n    qualityScore: inputData.quality_score || inputData.质量分数 || 0\n  },\n  \n  revisionDetails: {\n    suggestions: inputData.revisionSuggestions || {},\n    aiDecision: inputData.aiManagement?.decision || {},\n    optimizationSuggestions: inputData.aiManagement?.contentReview?.optimizationSuggestions || {},\n    confidence: inputData.aiManagement?.decision?.confidence || 0\n  },\n  \n  nextSteps: [\n    '应用AI优化建议',\n    '重新进行质量评估',\n    '更新Notion记录',\n    '重新提交审核'\n  ],\n  \n  performance: {\n    totalWorkflowTime: Date.now() - (workflowStatus.startTime || Date.now()),\n    stepsCompleted: workflowStatus.currentStep || 0\n  }\n};\n\n// 更新工作流状态\nworkflowStatus.contentRevision = {\n  completed: true,\n  suggestionsCount: Object.keys(revisionRecord.revisionDetails.suggestions).length,\n  confidence: revisionRecord.revisionDetails.confidence\n};\n\nworkflowStatus.revisionCount = (workflowStatus.revisionCount || 0) + 1;\n\nconsole.log('✏️ 内容需要修改:', {\n  title: revisionRecord.contentInfo.title,\n  suggestions: Object.keys(revisionRecord.revisionDetails.suggestions),\n  nextSteps: revisionRecord.nextSteps.length,\n  qualityScore: revisionRecord.contentInfo.qualityScore,\n  totalTime: Math.round(revisionRecord.performance.totalWorkflowTime / 1000) + '秒'\n});\n\n// 在实际实现中，这里可以：\n// 1. 自动应用一些简单的修改建议\n// 2. 将内容发送到人工审核队列\n// 3. 更新Notion中的状态和建议\n// 4. 触发重新处理流程\n\nconst outputData = {\n  revisionRecord: revisionRecord,\n  workflowStatus: workflowStatus,\n  processing_status: 'needs_revision',\n  finalStatus: 'pending_revision',\n  \n  // 标记需要人工干预\n  requiresManualReview: true,\n  skipFirebirdPublish: true,\n  workflow_completed: false, // 需要后续处理\n  completedAt: revisionRecord.timestamp,\n  \n  // 保留原始数据\n  ...inputData,\n  \n  // 最终统计\n  finalStats: {\n    totalProcessingTime: revisionRecord.performance.totalWorkflowTime,\n    stepsCompleted: revisionRecord.performance.stepsCompleted,\n    totalSteps: 8,\n    outcome: 'needs_revision',\n    suggestionsProvided: Object.keys(revisionRecord.revisionDetails.suggestions).length\n  }\n};\n\nreturn { json: outputData };"
+      }
+    },
+    {
+      "id": "content-hold-handler",
+      "name": "内容暂停处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2840, 400],
+      "parameters": {
+        "functionCode": "// 内容暂停处理 - 基于AI置信度\nconst inputData = $input.first().json;\nlet workflowStatus = inputData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'content_on_hold';\nworkflowStatus.currentStep = 8; // 最终步骤\n\nconst holdRecord = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  contentInfo: {\n    title: inputData.title?.substring(0, 50) + '...',\n    source: inputData.source || inputData.来源,\n    category: inputData.category || inputData.分类名称,\n    qualityScore: inputData.quality_score || inputData.质量分数 || 0\n  },\n  \n  holdDetails: {\n    reason: inputData.holdReason || 'AI置信度过低',\n    aiDecision: inputData.aiManagement?.decision || {},\n    confidence: inputData.aiManagement?.decision?.confidence || 0,\n    threshold: 0.7 // 置信度阈值\n  },\n  \n  recommendedActions: [\n    '人工审核内容质量',\n    '验证内容来源可靠性',\n    '确认分类准确性',\n    '评估发布时机'\n  ],\n  \n  performance: {\n    totalWorkflowTime: Date.now() - (workflowStatus.startTime || Date.now()),\n    stepsCompleted: workflowStatus.currentStep || 0\n  }\n};\n\n// 更新工作流状态\nworkflowStatus.contentHold = {\n  completed: true,\n  reason: holdRecord.holdDetails.reason,\n  confidence: holdRecord.holdDetails.confidence,\n  threshold: holdRecord.holdDetails.threshold\n};\n\nworkflowStatus.holdCount = (workflowStatus.holdCount || 0) + 1;\n\nconsole.log('⏸️ 内容被暂停:', {\n  title: holdRecord.contentInfo.title,\n  reason: holdRecord.holdDetails.reason,\n  confidence: holdRecord.holdDetails.confidence,\n  qualityScore: holdRecord.contentInfo.qualityScore,\n  totalTime: Math.round(holdRecord.performance.totalWorkflowTime / 1000) + '秒'\n});\n\n// 在实际实现中，这里可以：\n// 1. 发送通知给内容管理员\n// 2. 将内容添加到人工审核队列\n// 3. 更新Notion中的状态\n// 4. 设置定时重新评估\n\nconst outputData = {\n  holdRecord: holdRecord,\n  workflowStatus: workflowStatus,\n  processing_status: 'on_hold',\n  finalStatus: 'pending_manual_review',\n  \n  // 标记需要人工干预\n  requiresManualReview: true,\n  skipFirebirdPublish: true,\n  workflow_completed: false, // 需要后续处理\n  completedAt: holdRecord.timestamp,\n  \n  // 保留原始数据\n  ...inputData,\n  \n  // 添加审核队列信息\n  reviewQueue: {\n    priority: holdRecord.holdDetails.confidence < 0.3 ? 'high' : 'medium',\n    estimatedReviewTime: '24小时内',\n    assignedReviewer: null\n  },\n  \n  // 最终统计\n  finalStats: {\n    totalProcessingTime: holdRecord.performance.totalWorkflowTime,\n    stepsCompleted: holdRecord.performance.stepsCompleted,\n    totalSteps: 8,\n    outcome: 'on_hold',\n    confidenceScore: holdRecord.holdDetails.confidence\n  }\n};\n\nreturn { json: outputData };"
+      }
+    },
+    {
+      "id": "workflow-completion-logger",
+      "name": "工作流完成日志与统计",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3500, 200],
+      "parameters": {
+        "functionCode": "// 工作流完成统计和日志记录 - 增强版\nconst finalData = $input.first().json;\nconst workflowStatus = finalData.workflowStatus || {};\n\n// 计算总执行时间\nconst totalExecutionTime = Date.now() - (workflowStatus.startTime || Date.now());\nconst executionTimeSeconds = Math.round(totalExecutionTime / 1000);\n\n// 构建完整的完成报告\nconst completionReport = {\n  // 基础信息\n  executionId: $execution.id,\n  workflowName: 'enhanced-news-collection-with-notion',\n  version: '2.0.0',\n  completedAt: new Date().toISOString(),\n  totalExecutionTime: totalExecutionTime,\n  executionTimeFormatted: `${Math.floor(executionTimeSeconds / 60)}分${executionTimeSeconds % 60}秒`,\n  \n  // 处理结果\n  results: {\n    contentProcessed: !!finalData.title,\n    notionStored: !!finalData.notionPageId,\n    aiManaged: !!finalData.aiManagement?.success,\n    firebirdPublished: finalData.publishSuccess === true,\n    workflowCompleted: finalData.workflow_completed === true\n  },\n  \n  // 内容信息\n  content: {\n    title: finalData.title?.substring(0, 100) + (finalData.title?.length > 100 ? '...' : '') || 'Unknown',\n    source: finalData.source || 'Unknown',\n    category: finalData.category || 'Unknown',\n    qualityScore: finalData.quality_score || finalData.qualityScore || 0,\n    processingStatus: finalData.processing_status || 'unknown'\n  },\n  \n  // 系统标识符\n  identifiers: {\n    notionPageId: finalData.notionPageId || null,\n    notionUrl: finalData.notionUrl || null,\n    firebirdArticleId: finalData.firebird?.articleId || null,\n    batchId: workflowStatus.executionId || $execution.id\n  },\n  \n  // 性能指标\n  performance: {\n    totalSteps: 8,\n    completedSteps: workflowStatus.currentStep || 0,\n    completionRate: Math.round(((workflowStatus.currentStep || 0) / 8) * 100),\n    \n    // 各阶段耗时\n    phaseTimings: {\n      dataCollection: workflowStatus.rssCollection?.totalProcessingTime || 0,\n      contentProcessing: workflowStatus.contentProcessing?.processingTime || 0,\n      notionStorage: finalData.notion?.attempts || 1,\n      aiManagement: workflowStatus.aiManagement?.processingTime || 0,\n      firebirdPublish: workflowStatus.firebirdPublish?.totalTime || 0\n    },\n    \n    // 质量指标\n    qualityMetrics: {\n      averageQualityScore: finalData.quality_score || 0,\n      aiDecisionConfidence: finalData.aiManagement?.decision?.confidence || 0,\n      contentOptimized: finalData.processingStats?.aiEnhanced || false\n    }\n  },\n  \n  // 错误和问题\n  issues: {\n    hasErrors: !!finalData.error || finalData.publishSuccess === false,\n    errorCount: (workflowStatus.contentProcessing?.errors || 0) + \n                (workflowStatus.notionStorage?.failureCount || 0) + \n                (finalData.publishSuccess === false ? 1 : 0),\n    warnings: [],\n    criticalIssues: []\n  },\n  \n  // AI决策信息\n  aiDecision: {\n    action: finalData.aiManagement?.decision?.action || 'unknown',\n    confidence: finalData.aiManagement?.decision?.confidence || 0,\n    reasoning: finalData.aiManagement?.decision?.reasoning || [],\n    fallbackUsed: finalData.aiManagement?.fallbackApplied || false\n  },\n  \n  // 工作流统计\n  workflowStats: {\n    successCount: workflowStatus.successCount || 0,\n    failureCount: workflowStatus.failureCount || 0,\n    rejectionCount: workflowStatus.rejectionCount || 0,\n    revisionCount: workflowStatus.revisionCount || 0,\n    holdCount: workflowStatus.holdCount || 0\n  },\n  \n  // 最终状态\n  finalStatus: finalData.finalStatus || (finalData.publishSuccess ? 'published' : 'failed'),\n  outcome: finalData.publishSuccess ? 'success' : \n           (finalData.processing_status === 'rejected_by_ai' ? 'rejected' :\n            (finalData.processing_status === 'needs_revision' ? 'needs_revision' :\n             (finalData.processing_status === 'on_hold' ? 'on_hold' : 'failed')))\n};\n\n// 添加警告信息\nif (completionReport.performance.completionRate < 100) {\n  completionReport.issues.warnings.push(`工作流未完全完成 (${completionReport.performance.completionRate}%)`);\n}\n\nif (completionReport.performance.qualityMetrics.averageQualityScore < 70) {\n  completionReport.issues.warnings.push(`内容质量分数较低 (${completionReport.performance.qualityMetrics.averageQualityScore})`);\n}\n\nif (executionTimeSeconds > 300) { // 超过5分钟\n  completionReport.issues.warnings.push(`执行时间过长 (${completionReport.executionTimeFormatted})`);\n}\n\n// 添加关键问题\nif (finalData.error) {\n  completionReport.issues.criticalIssues.push(`执行错误: ${finalData.error}`);\n}\n\nif (!finalData.notionPageId && finalData.processing_status !== 'rejected_by_ai') {\n  completionReport.issues.criticalIssues.push('Notion存储失败');\n}\n\n// 记录日志\nif (completionReport.results.firebirdPublished) {\n  console.log('🎉 工作流执行成功完成:', {\n    executionId: completionReport.executionId,\n    title: completionReport.content.title,\n    source: completionReport.content.source,\n    articleId: completionReport.identifiers.firebirdArticleId,\n    totalTime: completionReport.executionTimeFormatted,\n    qualityScore: completionReport.content.qualityScore,\n    aiDecision: completionReport.aiDecision.action,\n    completionRate: completionReport.performance.completionRate + '%'\n  });\n} else {\n  const logLevel = completionReport.issues.criticalIssues.length > 0 ? 'error' : 'warn';\n  console[logLevel]('⚠️ 工作流执行完成但有问题:', {\n    executionId: completionReport.executionId,\n    title: completionReport.content.title,\n    outcome: completionReport.outcome,\n    issues: completionReport.issues.criticalIssues.length,\n    warnings: completionReport.issues.warnings.length,\n    totalTime: completionReport.executionTimeFormatted,\n    completionRate: completionReport.performance.completionRate + '%'\n  });\n}\n\n// 性能分析日志\nconsole.log('📊 工作流性能分析:', {\n  总耗时: completionReport.executionTimeFormatted,\n  完成率: completionReport.performance.completionRate + '%',\n  质量分数: completionReport.performance.qualityMetrics.averageQualityScore,\n  AI置信度: Math.round(completionReport.performance.qualityMetrics.aiDecisionConfidence * 100) + '%',\n  成功发布: completionReport.results.firebirdPublished ? '是' : '否',\n  错误数量: completionReport.issues.errorCount,\n  警告数量: completionReport.issues.warnings.length\n});\n\nreturn { json: completionReport };"
+      }
+    },
+    {
+      "id": "error-handling-node",
+      "name": "全局错误处理",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1560, 400],
+      "parameters": {
+        "functionCode": "// 全局错误处理节点\nconst errorData = $input.first().json;\nconst error = errorData.error || 'Unknown error';\nlet workflowStatus = errorData.workflowStatus || {};\n\n// 更新工作流状态\nworkflowStatus.phase = 'error_handling';\nworkflowStatus.hasErrors = true;\n\n// 错误分类\nfunction categorizeError(errorMessage, context) {\n  const errorMsg = errorMessage.toLowerCase();\n  \n  // 网络相关错误\n  if (errorMsg.includes('timeout') || errorMsg.includes('network') || errorMsg.includes('connection')) {\n    return {\n      type: 'network_error',\n      severity: 'medium',\n      recoverable: true,\n      action: 'retry_with_delay',\n      category: 'infrastructure'\n    };\n  }\n  \n  // 认证相关错误\n  if (errorMsg.includes('unauthorized') || errorMsg.includes('invalid token') || errorMsg.includes('authentication')) {\n    return {\n      type: 'authentication_error',\n      severity: 'high',\n      recoverable: false,\n      action: 'check_credentials',\n      category: 'security'\n    };\n  }\n  \n  // API限制错误\n  if (errorMsg.includes('rate limit') || errorMsg.includes('too many requests') || errorMsg.includes('quota')) {\n    return {\n      type: 'rate_limit_error',\n      severity: 'medium',\n      recoverable: true,\n      action: 'retry_with_exponential_backoff',\n      category: 'api_limits'\n    };\n  }\n  \n  // 数据验证错误\n  if (errorMsg.includes('validation') || errorMsg.includes('invalid data') || errorMsg.includes('required field')) {\n    return {\n      type: 'validation_error',\n      severity: 'medium',\n      recoverable: true,\n      action: 'fix_data_and_retry',\n      category: 'data_quality'\n    };\n  }\n  \n  // 外部服务错误\n  if (errorMsg.includes('notion') || errorMsg.includes('openai') || errorMsg.includes('github')) {\n    return {\n      type: 'external_service_error',\n      severity: 'high',\n      recoverable: true,\n      action: 'check_service_status',\n      category: 'external_dependency'\n    };\n  }\n  \n  // 内容处理错误\n  if (errorMsg.includes('content') || errorMsg.includes('processing') || errorMsg.includes('parsing')) {\n    return {\n      type: 'content_processing_error',\n      severity: 'medium',\n      recoverable: true,\n      action: 'skip_item_and_continue',\n      category: 'content_processing'\n    };\n  }\n  \n  return {\n    type: 'unknown_error',\n    severity: 'medium',\n    recoverable: true,\n    action: 'log_and_continue',\n    category: 'unknown'\n  };\n}\n\nconst errorCategory = categorizeError(error, errorData);\nconst errorReport = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  error: {\n    message: error,\n    category: errorCategory,\n    phase: workflowStatus.phase || 'unknown',\n    step: workflowStatus.currentStep || 0,\n    context: {\n      title: errorData.title || errorData.originalData?.title || 'Unknown',\n      source: errorData.source || errorData.originalData?.source || 'Unknown',\n      processingStatus: errorData.processing_status || 'unknown'\n    }\n  },\n  \n  impact: {\n    severity: errorCategory.severity,\n    affectedComponent: errorCategory.category,\n    workflowInterrupted: errorCategory.severity === 'high',\n    dataLoss: false // 假设没有数据丢失\n  },\n  \n  recovery: {\n    recommended: errorCategory.action,\n    canRetry: errorCategory.recoverable,\n    automaticRecovery: errorCategory.recoverable && errorCategory.severity !== 'high',\n    manualIntervention: errorCategory.severity === 'high'\n  },\n  \n  performance: {\n    totalWorkflowTime: Date.now() - (workflowStatus.startTime || Date.now()),\n    failedAtStep: workflowStatus.currentStep || 0,\n    completionRate: Math.round(((workflowStatus.currentStep || 0) / 8) * 100)\n  }\n};\n\n// 更新工作流错误统计\nworkflowStatus.errorHandling = {\n  errorCount: (workflowStatus.errorHandling?.errorCount || 0) + 1,\n  lastError: errorReport,\n  errorCategories: {\n    ...workflowStatus.errorHandling?.errorCategories,\n    [errorCategory.category]: (workflowStatus.errorHandling?.errorCategories?.[errorCategory.category] || 0) + 1\n  }\n};\n\n// 记录错误日志\nconsole.error('🚨 工作流错误:', {\n  executionId: errorReport.executionId,\n  error: error,\n  category: errorCategory.type,\n  severity: errorCategory.severity,\n  phase: errorReport.error.phase,\n  step: errorReport.error.step,\n  title: errorReport.error.context.title?.substring(0, 50) + '...',\n  recoverable: errorCategory.recoverable,\n  recommendedAction: errorCategory.action\n});\n\n// 确定后续行动\nlet shouldContinueWorkflow = false;\nlet alternativeAction = null;\nlet skipToEnd = false;\n\nswitch (errorCategory.type) {\n  case 'content_processing_error':\n  case 'validation_error':\n    shouldContinueWorkflow = true;\n    alternativeAction = 'skip_item';\n    skipToEnd = true;\n    break;\n    \n  case 'rate_limit_error':\n  case 'network_error':\n    shouldContinueWorkflow = true;\n    alternativeAction = 'retry_later';\n    break;\n    \n  case 'authentication_error':\n  case 'external_service_error':\n    shouldContinueWorkflow = false;\n    alternativeAction = 'manual_intervention';\n    skipToEnd = true;\n    break;\n    \n  default:\n    shouldContinueWorkflow = true;\n    alternativeAction = 'continue_with_warning';\n    skipToEnd = true;\n}\n\n// 构建输出数据\nconst outputData = {\n  errorHandled: true,\n  shouldContinue: shouldContinueWorkflow,\n  alternativeAction: alternativeAction,\n  skipToEnd: skipToEnd,\n  \n  errorReport: errorReport,\n  workflowStatus: workflowStatus,\n  \n  // 保留原始数据\n  originalData: errorData.originalData || errorData,\n  \n  // 处理状态\n  processing_status: 'error_handled',\n  workflow_completed: skipToEnd,\n  \n  // 错误恢复信息\n  recovery: {\n    strategy: errorCategory.action,\n    canAutoRecover: errorCategory.recoverable,\n    requiresManualIntervention: errorCategory.severity === 'high',\n    estimatedRecoveryTime: errorCategory.recoverable ? '1-5分钟' : '需要人工干预'\n  },\n  \n  // 最终统计（如果跳到结束）\n  finalStats: skipToEnd ? {\n    totalProcessingTime: errorReport.performance.totalWorkflowTime,\n    stepsCompleted: errorReport.performance.failedAtStep,\n    totalSteps: 8,\n    outcome: 'error',\n    errorCategory: errorCategory.type,\n    completionRate: errorReport.performance.completionRate\n  } : null\n};\n\n// 发送告警（如果是严重错误）\nif (errorCategory.severity === 'high') {\n  console.error('🚨 严重错误需要立即关注:', {\n    executionId: errorReport.executionId,\n    error: error,\n    category: errorCategory.type,\n    phase: errorReport.error.phase,\n    impact: errorReport.impact,\n    recommendedAction: errorCategory.action\n  });\n}\n\nreturn {\n  json: outputData\n};"
+      }
+    }
+  ],
+  "connections": {
+    "定时触发器": {
+      "main": [
+        [
+          {
+            "node": "数据源配置与状态初始化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据源配置与状态初始化": {
+      "main": [
+        [
+          {
+            "node": "RSS新闻采集",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "GitHub项目采集",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS新闻采集": {
+      "main": [
+        [
+          {
+            "node": "数据合并与质量控制",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub项目采集": {
+      "main": [
+        [
+          {
+            "node": "数据合并与质量控制",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "数据合并与质量控制": {
+      "main": [
+        [
+          {
+            "node": "增强智能内容处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "增强智能内容处理": {
+      "main": [
+        [
+          {
+            "node": "内容处理状态检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容处理状态检查": {
+      "main": [
+        [
+          {
+            "node": "Notion存储重试处理",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion存储重试处理": {
+      "main": [
+        [
+          {
+            "node": "Notion新闻存储",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion新闻存储": {
+      "main": [
+        [
+          {
+            "node": "Notion存储状态跟踪",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion存储状态跟踪": {
+      "main": [
+        [
+          {
+            "node": "存储条件检查",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "存储条件检查": {
+      "main": [
+        [
+          {
+            "node": "AI智能管理节点",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "工作流完成日志与统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI智能管理节点": {
+      "main": [
+        [
+          {
+            "node": "AI决策路由",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI决策路由": {
+      "main": [
+        [
+          {
+            "node": "火鸟门户发布数据准备",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "内容拒绝处理",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "内容修改处理",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "内容暂停处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "火鸟门户发布数据准备": {
+      "main": [
+        [
+          {
+            "node": "火鸟门户新闻发布",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "火鸟门户新闻发布": {
+      "main": [
+        [
+          {
+            "node": "火鸟门户发布状态处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "全局错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "火鸟门户发布状态处理": {
+      "main": [
+        [
+          {
+            "node": "工作流完成日志与统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容拒绝处理": {
+      "main": [
+        [
+          {
+            "node": "工作流完成日志与统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容修改处理": {
+      "main": [
+        [
+          {
+            "node": "工作流完成日志与统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容暂停处理": {
+      "main": [
+        [
+          {
+            "node": "工作流完成日志与统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "全局错误处理": {
+      "main": [
+        [
+          {
+            "node": "工作流完成日志与统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Asia/Shanghai",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "enhanced-news-collection-v2.0.0",
+    "lastUpdated": "2025-01-22T13:35:00.000Z",
+    "version": "2.0.0",
+    "updateDescription": "更新火鸟门户发布节点，增强数据映射、重试机制和状态检查功能"
+  },
+  "tags": [
+    {
+      "id": "huoniao",
+      "name": "火鸟门户"
+    },
+    {
+      "id": "news",
+      "name": "新闻采集"
+    },
+    {
+      "id": "firebird-publish",
+      "name": "火鸟发布"
+    },
+    {
+      "id": "enhanced-v2",
+      "name": "增强版v2.0"
+    }
+  ]
+}

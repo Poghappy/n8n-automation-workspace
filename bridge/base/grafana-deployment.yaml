@@ -1,0 +1,57 @@
+#! grafana-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: grafana
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: grafana
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: n8n-
+            com.docker.compose.service: grafana
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: n8n-
+                com.docker.compose.service: grafana
+                com.docker.compose.network.n8n-network: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: n8n-grafana
+                  image: grafana/grafana:latest
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: GF_SECURITY_ADMIN_PASSWORD
+                      value: "admin123"
+                    - name: GF_SECURITY_ADMIN_USER
+                      value: "admin"
+                    - name: GF_USERS_ALLOW_SIGN_UP
+                      value: "false"
+                  ports:
+                    - name: grafana-3000
+                      containerPort: 3000
+                  volumeMounts:
+                    - name: var-lib-grafana
+                      mountPath: /var/lib/grafana
+                    - name: etc-grafana-provisioning
+                      mountPath: /etc/grafana/provisioning
+                    - name: var-lib-grafana-dashboards
+                      mountPath: /var/lib/grafana/dashboards
+            volumes:
+                - name: var-lib-grafana
+                  persistentVolumeClaim:
+                    claimName: grafana-grafana-data
+                - name: etc-grafana-provisioning
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/monitoring/grafana/provisioning
+                - name: var-lib-grafana-dashboards
+                  hostPath:
+                    path: /Users/zhiledeng/Documents/augment-projects/N8N-自动化/monitoring/grafana/dashboards

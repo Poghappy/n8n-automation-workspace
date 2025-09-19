@@ -1,0 +1,378 @@
+{
+  "database_name": "火鸟门户新闻内容库",
+  "description": "自动化新闻工作流的中央数据存储，用于管理从采集到发布的完整新闻生命周期",
+  "icon": "📰",
+  "cover": null,
+  "properties": {
+    "标题": {
+      "type": "title",
+      "title": {},
+      "description": "新闻标题，对应火鸟门户title字段，最大60字符"
+    },
+    "短标题": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "短标题，对应火鸟门户subtitle字段，最大36字符"
+    },
+    "内容": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "新闻正文内容，对应火鸟门户body字段"
+    },
+    "摘要": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "新闻摘要，对应火鸟门户description字段，最大255字符"
+    },
+    "来源": {
+      "type": "select",
+      "select": {
+        "options": [
+          {
+            "name": "The Neuron",
+            "color": "blue"
+          },
+          {
+            "name": "Futurepedia",
+            "color": "green"
+          },
+          {
+            "name": "Superhuman",
+            "color": "orange"
+          },
+          {
+            "name": "The Rundown AI",
+            "color": "purple"
+          },
+          {
+            "name": "GitHub项目",
+            "color": "gray"
+          },
+          {
+            "name": "API采集",
+            "color": "default"
+          },
+          {
+            "name": "RSS采集",
+            "color": "yellow"
+          },
+          {
+            "name": "网页抓取",
+            "color": "pink"
+          }
+        ]
+      },
+      "description": "新闻来源，对应火鸟门户source字段，最大30字符"
+    },
+    "作者": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "新闻作者，对应火鸟门户writer字段，最大20字符"
+    },
+    "原始URL": {
+      "type": "url",
+      "url": {},
+      "description": "新闻原始链接，对应火鸟门户sourceurl字段，最大200字符"
+    },
+    "来源网址": {
+      "type": "url",
+      "url": {},
+      "description": "来源网站主页地址"
+    },
+    "发布日期": {
+      "type": "date",
+      "date": {},
+      "description": "新闻发布日期，对应火鸟门户pubdate字段"
+    },
+    "分类ID": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "火鸟门户分类ID，对应typeid字段"
+    },
+    "分类名称": {
+      "type": "select",
+      "select": {
+        "options": [
+          {
+            "name": "科技资讯",
+            "color": "blue"
+          },
+          {
+            "name": "本地新闻",
+            "color": "green"
+          },
+          {
+            "name": "生活资讯",
+            "color": "yellow"
+          },
+          {
+            "name": "AI工具",
+            "color": "purple"
+          },
+          {
+            "name": "生产力工具",
+            "color": "orange"
+          },
+          {
+            "name": "技术教程",
+            "color": "pink"
+          },
+          {
+            "name": "行业动态",
+            "color": "red"
+          }
+        ]
+      },
+      "description": "新闻分类名称，用于显示和管理"
+    },
+    "关键词": {
+      "type": "multi_select",
+      "multi_select": {
+        "options": [
+          {
+            "name": "AI",
+            "color": "blue"
+          },
+          {
+            "name": "机器学习",
+            "color": "purple"
+          },
+          {
+            "name": "深度学习",
+            "color": "red"
+          },
+          {
+            "name": "自然语言处理",
+            "color": "green"
+          },
+          {
+            "name": "计算机视觉",
+            "color": "orange"
+          },
+          {
+            "name": "生产力",
+            "color": "yellow"
+          },
+          {
+            "name": "工具",
+            "color": "gray"
+          },
+          {
+            "name": "技术",
+            "color": "default"
+          },
+          {
+            "name": "创新",
+            "color": "pink"
+          },
+          {
+            "name": "科技",
+            "color": "blue"
+          }
+        ]
+      },
+      "description": "新闻关键词标签，对应火鸟门户keywords字段，最大50字符"
+    },
+    "缩略图URL": {
+      "type": "url",
+      "url": {},
+      "description": "新闻缩略图地址，对应火鸟门户litpic字段，最大255字符"
+    },
+    "图片集合": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "多张图片URL集合，用于火鸟门户imglist字段处理"
+    },
+    "质量分数": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "AI评估的内容质量分数，0-100分"
+    },
+    "相关性分数": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "AI评估的内容相关性分数，0-100分"
+    },
+    "处理状态": {
+      "type": "select",
+      "select": {
+        "options": [
+          {
+            "name": "待处理",
+            "color": "gray"
+          },
+          {
+            "name": "处理中",
+            "color": "yellow"
+          },
+          {
+            "name": "已存储",
+            "color": "blue"
+          },
+          {
+            "name": "已发布",
+            "color": "green"
+          },
+          {
+            "name": "已拒绝",
+            "color": "red"
+          },
+          {
+            "name": "发布失败",
+            "color": "orange"
+          }
+        ]
+      },
+      "description": "新闻处理状态跟踪"
+    },
+    "审核状态": {
+      "type": "select",
+      "select": {
+        "options": [
+          {
+            "name": "未审核",
+            "color": "gray"
+          },
+          {
+            "name": "已审核",
+            "color": "green"
+          },
+          {
+            "name": "审核拒绝",
+            "color": "red"
+          },
+          {
+            "name": "待人工审核",
+            "color": "yellow"
+          }
+        ]
+      },
+      "description": "内容审核状态，对应火鸟门户arcrank字段"
+    },
+    "标题颜色": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "标题显示颜色，对应火鸟门户color字段，最大7字符"
+    },
+    "附加属性": {
+      "type": "multi_select",
+      "multi_select": {
+        "options": [
+          {
+            "name": "头条",
+            "color": "red"
+          },
+          {
+            "name": "推荐",
+            "color": "blue"
+          },
+          {
+            "name": "加粗",
+            "color": "orange"
+          },
+          {
+            "name": "图文",
+            "color": "green"
+          },
+          {
+            "name": "跳转",
+            "color": "purple"
+          }
+        ]
+      },
+      "description": "新闻附加属性，对应火鸟门户flag字段"
+    },
+    "排序权重": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "新闻排序权重，对应火鸟门户weight字段"
+    },
+    "城市ID": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "城市ID，固定为1（夏威夷），对应火鸟门户cityid字段"
+    },
+    "评论开关": {
+      "type": "checkbox",
+      "checkbox": {},
+      "description": "是否允许评论，对应火鸟门户notpost字段（true=允许，false=禁止）"
+    },
+    "跳转地址": {
+      "type": "url",
+      "url": {},
+      "description": "跳转地址，对应火鸟门户redirecturl字段，最大255字符"
+    },
+    "火鸟文章ID": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "火鸟门户中的文章ID，发布成功后记录"
+    },
+    "阅读次数": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "文章阅读次数，对应火鸟门户click字段"
+    },
+    "发布人ID": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "发布人ID，对应火鸟门户admin字段"
+    },
+    "错误信息": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "处理过程中的错误信息记录"
+    },
+    "处理时间": {
+      "type": "number",
+      "number": {
+        "format": "number"
+      },
+      "description": "处理耗时（毫秒）"
+    },
+    "AI评估结果": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "AI内容评估的详细结果"
+    },
+    "重复检查结果": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "重复内容检查的结果"
+    },
+    "请求ID": {
+      "type": "rich_text",
+      "rich_text": {},
+      "description": "工作流执行的唯一请求ID"
+    },
+    "创建时间": {
+      "type": "created_time",
+      "created_time": {},
+      "description": "记录创建时间"
+    },
+    "更新时间": {
+      "type": "last_edited_time",
+      "last_edited_time": {},
+      "description": "记录最后更新时间"
+    }
+  },
+  "parent": {
+    "type": "page_id",
+    "page_id": "notion_workspace_page_id"
+  }
+}

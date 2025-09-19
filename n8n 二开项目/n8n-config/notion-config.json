@@ -1,0 +1,263 @@
+{
+  "notion": {
+    "databaseId": "f352dd44-bdcc-4a20-85da-84361489a1e0",
+    "databaseTitle": "火鸟门户新闻内容库",
+    "databaseUrl": "https://www.notion.so/f352dd44bdcc4a2085da84361489a1e0",
+    "apiVersion": "2022-06-28",
+    "createdAt": "2025-08-23T10:14:20.818Z",
+    "description": "自动化新闻工作流的中央数据存储，用于管理从采集到发布的完整新闻生命周期"
+  },
+  "n8nNodeConfig": {
+    "name": "Notion存储节点",
+    "type": "n8n-nodes-base.notion",
+    "typeVersion": 2,
+    "position": [900, 300],
+    "parameters": {
+      "resource": "databasePage",
+      "operation": "create",
+      "databaseId": "={{$env.NOTION_DATABASE_ID}}",
+      "title": "={{$json.标题}}",
+      "propertiesUi": {
+        "propertyValues": [
+          {
+            "key": "短标题",
+            "type": "rich_text",
+            "richTextValue": "={{$json.短标题 || \"\"}}"
+          },
+          {
+            "key": "内容",
+            "type": "rich_text",
+            "richTextValue": "={{$json.内容}}"
+          },
+          {
+            "key": "摘要",
+            "type": "rich_text",
+            "richTextValue": "={{$json.摘要 || \"\"}}"
+          },
+          {
+            "key": "来源",
+            "type": "select",
+            "selectValue": "={{$json.来源 || \"API采集\"}}"
+          },
+          {
+            "key": "作者",
+            "type": "rich_text",
+            "richTextValue": "={{$json.作者 || \"AI采集\"}}"
+          },
+          {
+            "key": "原始URL",
+            "type": "url",
+            "urlValue": "={{$json.原始URL || \"\"}}"
+          },
+          {
+            "key": "来源网址",
+            "type": "url",
+            "urlValue": "={{$json.来源网址 || \"\"}}"
+          },
+          {
+            "key": "发布日期",
+            "type": "date",
+            "dateValue": "={{$json.发布日期 || new Date().toISOString()}}"
+          },
+          {
+            "key": "分类ID",
+            "type": "number",
+            "numberValue": "={{$json.分类ID || 1}}"
+          },
+          {
+            "key": "分类名称",
+            "type": "select",
+            "selectValue": "={{$json.分类名称 || \"科技资讯\"}}"
+          },
+          {
+            "key": "关键词",
+            "type": "multi_select",
+            "multiSelectValue": "={{$json.关键词 ? ($json.关键词.constructor === Array ? $json.关键词 : $json.关键词.split(\",\").map(k => k.trim())) : []}}"
+          },
+          {
+            "key": "缩略图URL",
+            "type": "url",
+            "urlValue": "={{$json.缩略图URL || \"\"}}"
+          },
+          {
+            "key": "图片集合",
+            "type": "rich_text",
+            "richTextValue": "={{$json.图片集合 || \"\"}}"
+          },
+          {
+            "key": "质量分数",
+            "type": "number",
+            "numberValue": "={{$json.质量分数 || 0}}"
+          },
+          {
+            "key": "相关性分数",
+            "type": "number",
+            "numberValue": "={{$json.相关性分数 || 0}}"
+          },
+          {
+            "key": "处理状态",
+            "type": "select",
+            "selectValue": "已存储"
+          },
+          {
+            "key": "审核状态",
+            "type": "select",
+            "selectValue": "未审核"
+          },
+          {
+            "key": "标题颜色",
+            "type": "rich_text",
+            "richTextValue": "={{$json.标题颜色 || \"\"}}"
+          },
+          {
+            "key": "附加属性",
+            "type": "multi_select",
+            "multiSelectValue": "={{$json.附加属性 ? ($json.附加属性.constructor === Array ? $json.附加属性 : $json.附加属性.split(\",\").map(a => a.trim())) : []}}"
+          },
+          {
+            "key": "排序权重",
+            "type": "number",
+            "numberValue": "={{$json.排序权重 || 1}}"
+          },
+          {
+            "key": "城市ID",
+            "type": "number",
+            "numberValue": 1
+          },
+          {
+            "key": "评论开关",
+            "type": "checkbox",
+            "checkboxValue": true
+          },
+          {
+            "key": "跳转地址",
+            "type": "url",
+            "urlValue": "={{$json.跳转地址 || \"\"}}"
+          },
+          {
+            "key": "火鸟文章ID",
+            "type": "number",
+            "numberValue": "={{$json.火鸟文章ID || 0}}"
+          },
+          {
+            "key": "阅读次数",
+            "type": "number",
+            "numberValue": "={{$json.阅读次数 || 0}}"
+          },
+          {
+            "key": "发布人ID",
+            "type": "number",
+            "numberValue": "={{$json.发布人ID || 1}}"
+          },
+          {
+            "key": "错误信息",
+            "type": "rich_text",
+            "richTextValue": "={{$json.错误信息 || \"\"}}"
+          },
+          {
+            "key": "处理时间",
+            "type": "number",
+            "numberValue": "={{$json.处理时间 || 0}}"
+          },
+          {
+            "key": "AI评估结果",
+            "type": "rich_text",
+            "richTextValue": "={{$json.AI评估结果 || \"\"}}"
+          },
+          {
+            "key": "重复检查结果",
+            "type": "rich_text",
+            "richTextValue": "={{$json.重复检查结果 || \"\"}}"
+          },
+          {
+            "key": "请求ID",
+            "type": "rich_text",
+            "richTextValue": "={{$json.请求ID || \"\"}}"
+          }
+        ]
+      },
+      "options": {
+        "iconType": "emoji",
+        "iconEmoji": "📰"
+      }
+    },
+    "credentials": {
+      "notionApi": {
+        "id": "notion_api_credentials",
+        "name": "Notion API凭据"
+      }
+    }
+  },
+  "queryNodeConfig": {
+    "name": "Notion查询节点",
+    "type": "n8n-nodes-base.notion",
+    "typeVersion": 2,
+    "position": [1100, 300],
+    "parameters": {
+      "resource": "databasePage",
+      "operation": "getAll",
+      "databaseId": "={{$env.NOTION_DATABASE_ID}}",
+      "filterType": "manual",
+      "matchType": "anyFilter",
+      "filters": {
+        "conditions": [
+          {
+            "key": "处理状态",
+            "condition": "equals",
+            "value": "已存储"
+          }
+        ]
+      },
+      "sortType": "manual",
+      "sorts": [
+        {
+          "key": "创建时间",
+          "direction": "descending"
+        }
+      ],
+      "limit": 100
+    },
+    "credentials": {
+      "notionApi": {
+        "id": "notion_api_credentials",
+        "name": "Notion API凭据"
+      }
+    }
+  },
+  "updateNodeConfig": {
+    "name": "Notion更新节点",
+    "type": "n8n-nodes-base.notion",
+    "typeVersion": 2,
+    "position": [1300, 300],
+    "parameters": {
+      "resource": "databasePage",
+      "operation": "update",
+      "pageId": "={{$json.id}}",
+      "propertiesUi": {
+        "propertyValues": [
+          {
+            "key": "处理状态",
+            "type": "select",
+            "selectValue": "={{$json.新状态 || \"已发布\"}}"
+          },
+          {
+            "key": "火鸟文章ID",
+            "type": "number",
+            "numberValue": "={{$json.火鸟文章ID}}"
+          },
+          {
+            "key": "错误信息",
+            "type": "rich_text",
+            "richTextValue": "={{$json.错误信息 || \"\"}}"
+          }
+        ]
+      }
+    },
+    "credentials": {
+      "notionApi": {
+        "id": "notion_api_credentials",
+        "name": "Notion API凭据"
+      }
+    }
+  }
+}

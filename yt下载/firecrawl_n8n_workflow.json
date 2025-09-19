@@ -1,0 +1,136 @@
+{
+  "name": "Firecrawl网页内容抓取工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "firecrawl-scrape",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v0/scrape",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "httpHeaderAuth": {
+          "name": "Authorization",
+          "value": "Bearer fc-0a2c801f433d4718bcd8189f2742edf4"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "{\n  \"url\": \"{{ $json.url }}\",\n  \"formats\": [\"markdown\", \"html\"],\n  \"includeTags\": [\"a\", \"img\", \"video\", \"audio\"],\n  \"onlyMainContent\": true,\n  \"waitFor\": 2000\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "http-request-firecrawl",
+      "name": "Firecrawl API请求",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析Firecrawl返回的数据\nconst firecrawlData = $input.first().json;\n\n// 提取基本信息\nconst result = {\n  url: firecrawlData.metadata?.sourceURL || $('Webhook触发器').first().json.url || '',\n  title: firecrawlData.metadata?.title || '',\n  description: firecrawlData.metadata?.description || '',\n  markdown: firecrawlData.markdown || '',\n  html: firecrawlData.html || '',\n  timestamp: new Date().toISOString(),\n  success: firecrawlData.success || false\n};\n\n// 提取媒体资源链接\nconst mediaLinks = {\n  images: [],\n  videos: [],\n  audios: [],\n  downloads: [],\n  links: []\n};\n\n// 从HTML中提取媒体链接\nif (firecrawlData.html) {\n  const html = firecrawlData.html;\n  \n  // 提取图片\n  const imgRegex = /<img[^>]+src=[\"']([^\"']+)[\"'][^>]*>/gi;\n  let match;\n  while ((match = imgRegex.exec(html)) !== null) {\n    const src = match[1];\n    if (src && !src.startsWith('data:')) {\n      mediaLinks.images.push(src.startsWith('http') ? src : new URL(src, result.url).href);\n    }\n  }\n  \n  // 提取视频\n  const videoRegex = /<video[^>]+src=[\"']([^\"']+)[\"'][^>]*>/gi;\n  while ((match = videoRegex.exec(html)) !== null) {\n    const src = match[1];\n    if (src && !src.startsWith('data:')) {\n      mediaLinks.videos.push(src.startsWith('http') ? src : new URL(src, result.url).href);\n    }\n  }\n  \n  // 提取音频\n  const audioRegex = /<audio[^>]+src=[\"']([^\"']+)[\"'][^>]*>/gi;\n  while ((match = audioRegex.exec(html)) !== null) {\n    const src = match[1];\n    if (src && !src.startsWith('data:')) {\n      mediaLinks.audios.push(src.startsWith('http') ? src : new URL(src, result.url).href);\n    }\n  }\n  \n  // 提取所有链接\n  const linkRegex = /<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>/gi;\n  while ((match = linkRegex.exec(html)) !== null) {\n    const href = match[1];\n    if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {\n      const fullUrl = href.startsWith('http') ? href : new URL(href, result.url).href;\n      mediaLinks.links.push(fullUrl);\n      \n      // 检查是否为下载文件\n      if (href.match(/\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|mp4|mp3|avi|mov|wmv|flv|mkv|webm|ogg|wav|m4a)$/i)) {\n        mediaLinks.downloads.push(fullUrl);\n      }\n    }\n  }\n}\n\n// 从Markdown中提取链接（作为补充）\nif (firecrawlData.markdown) {\n  const markdownLinkRegex = /\\[([^\\]]+)\\]\\(([^)]+)\\)/g;\n  let match;\n  while ((match = markdownLinkRegex.exec(firecrawlData.markdown)) !== null) {\n    const url = match[2];\n    if (url && url.startsWith('http')) {\n      if (!mediaLinks.links.includes(url)) {\n        mediaLinks.links.push(url);\n      }\n      \n      // 检查图片链接\n      if (url.match(/\\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i)) {\n        if (!mediaLinks.images.includes(url)) {\n          mediaLinks.images.push(url);\n        }\n      }\n    }\n  }\n}\n\n// 去重\nmediaLinks.images = [...new Set(mediaLinks.images)];\nmediaLinks.videos = [...new Set(mediaLinks.videos)];\nmediaLinks.audios = [...new Set(mediaLinks.audios)];\nmediaLinks.downloads = [...new Set(mediaLinks.downloads)];\nmediaLinks.links = [...new Set(mediaLinks.links)];\n\nresult.mediaLinks = mediaLinks;\nresult.mediaCount = {\n  images: mediaLinks.images.length,\n  videos: mediaLinks.videos.length,\n  audios: mediaLinks.audios.length,\n  downloads: mediaLinks.downloads.length,\n  totalLinks: mediaLinks.links.length\n};\n\n// 添加内容统计\nresult.contentStats = {\n  markdownLength: (firecrawlData.markdown || '').length,\n  htmlLength: (firecrawlData.html || '').length,\n  wordCount: (firecrawlData.markdown || '').split(/\\s+/).filter(word => word.length > 0).length\n};\n\nreturn [result];"
+      },
+      "id": "code-parser",
+      "name": "内容解析器",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{{ $json }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "返回响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [700, 200]
+    }
+  ],
+  "connections": {
+    "Webhook触发器": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl API请求",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl API请求": {
+      "main": [
+        [
+          {
+            "node": "内容解析器",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "内容解析器": {
+      "main": [
+        [
+          {
+            "node": "返回响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-15T13:06:44.845Z",
+      "updatedAt": "2025-01-15T13:06:44.845Z",
+      "id": "firecrawl",
+      "name": "Firecrawl"
+    },
+    {
+      "createdAt": "2025-01-15T13:06:44.845Z",
+      "updatedAt": "2025-01-15T13:06:44.845Z",
+      "id": "scraping",
+      "name": "网页抓取"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-15T13:06:44.845Z",
+  "versionId": "1"
+}

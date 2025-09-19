@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "docker": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        "/Users/zhiledeng/.docker/run/docker.sock:/var/run/docker.sock",
+        "mcp/docker"
+      ],
+      "env": {
+        "DOCKER_HOST": "unix:///var/run/docker.sock"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-playwright"
+      ],
+      "env": {
+        "PLAYWRIGHT_BROWSER_PATH": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      }
+    }
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "name": "AI智能管理节点配置",
+  "description": "完整的AI智能管理节点配置，包含内容审核、分类优化、配置管理和运营建议",
+  "version": "1.0.0",
+  "createdAt": "2025-08-23T10:45:00.000Z",
+  
+  "aiManagementNode": {
+    "id": "ai-intelligent-management",
+    "name": "AI智能管理节点",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2200, 200],
+    "parameters": {
+      "functionCode": "// AI智能管理节点 - 主要处理逻辑\nconst { AIIntelligentManager } = require('./ai-intelligent-management-node.js');\n\n// 初始化AI管理器\nconst aiManager = new AIIntelligentManager({\n  aiApiKey: process.env.OPENAI_API_KEY,\n  aiModel: 'gpt-4',\n  firebirdApiUrl: 'https://hawaiihub.net/include/ajax.php',\n  firebirdSessionId: process.env.HUONIAO_SESSION_ID,\n  notionApiKey: process.env.NOTION_API_TOKEN,\n  notionDatabaseId: process.env.NOTION_DATABASE_ID,\n  \n  // 功能开关\n  enableContentReview: true,\n  enableConfigOptimization: true,\n  enablePerformanceAnalysis: true,\n  enableOperationalInsights: true,\n  \n  // 阈值配置\n  contentQualityThreshold: 75,\n  relevanceThreshold: 0.7,\n  performanceThreshold: 0.95\n});\n\n// 获取输入数据\nconst inputData = $input.first().json;\n\n// 验证输入数据\nif (!inputData || !inputData.title) {\n  throw new Error('输入数据无效：缺少必要的标题字段');\n}\n\n// 准备管理数据\nconst managementData = {\n  // 基础内容信息\n  title: inputData.title,\n  content: inputData.content || inputData.body,\n  summary: inputData.summary || inputData.description,\n  \n  // 分类信息\n  category: inputData.category || inputData.分类名称,\n  categoryId: inputData.categoryId || inputData.分类ID || inputData.typeid,\n  \n  // 来源信息\n  source: inputData.source || inputData.来源,\n  author: inputData.author || inputData.作者,\n  source_url: inputData.source_url || inputData.原始URL,\n  \n  // 质量信息\n  quality_score: inputData.quality_score || inputData.质量分数 || inputData.qualityScore,\n  relevance_score: inputData.relevance_score || inputData.relevanceScore,\n  \n  // 处理状态\n  processing_status: inputData.processing_status || inputData.处理状态,\n  \n  // Notion信息\n  notionPageId: inputData.notionPageId || inputData.notion?.pageId,\n  notionUrl: inputData.notionUrl || inputData.notion?.url,\n  \n  // 时间信息\n  publishedAt: inputData.publishedAt || inputData.发布日期,\n  processedAt: inputData.processedAt || new Date().toISOString(),\n  \n  // 元数据\n  metadata: inputData.metadata || inputData.processingMetadata || {},\n  originalData: inputData\n};\n\ntry {\n  console.log('🤖 开始AI智能管理处理:', {\n    title: managementData.title?.substring(0, 50) + '...',\n    source: managementData.source,\n    category: managementData.category,\n    qualityScore: managementData.quality_score\n  });\n  \n  // 执行AI智能管理\n  const managementResult = await aiManager.performIntelligentManagement(managementData, {\n    enableAI: true,\n    strictMode: false,\n    includeInsights: true,\n    includeOptimizations: true\n  });\n  \n  if (!managementResult.success) {\n    throw new Error(`AI智能管理失败: ${managementResult.error || 'Unknown error'}`);\n  }\n  \n  // 处理管理结果\n  const processedData = {\n    ...inputData,\n    \n    // AI管理结果\n    aiManagement: {\n      success: true,\n      timestamp: managementResult.timestamp,\n      processingTime: managementResult.processingTime,\n      \n      // 内容审核结果\n      contentReview: managementResult.modules.contentReview,\n      \n      // 分类优化结果\n      categoryOptimization: managementResult.modules.categoryOptimization,\n      \n      // 配置优化结果\n      configOptimization: managementResult.modules.configOptimization,\n      \n      // 性能分析结果\n      performanceAnalysis: managementResult.modules.performanceAnalysis,\n      \n      // 运营建议结果\n      operationalInsights: managementResult.modules.operationalInsights,\n      \n      // 最终决策\n      decision: managementResult.decision\n    },\n    \n    // 更新处理状态\n    processing_status: 'ai_managed',\n    \n    // 应用AI建议的修改\n    ...(managementResult.decision.modifications || {})\n  };\n  \n  // 根据AI决策确定下一步行动\n  let nextAction = 'continue';\n  let actionReason = 'AI审核通过';\n  \n  switch (managementResult.decision.action) {\n    case 'approve':\n      nextAction = 'publish';\n      actionReason = 'AI建议发布';\n      processedData.readyForPublish = true;\n      break;\n      \n    case 'reject':\n      nextAction = 'reject';\n      actionReason = 'AI建议拒绝';\n      processedData.readyForPublish = false;\n      processedData.rejectionReason = managementResult.decision.reasoning.join('; ');\n      break;\n      \n    case 'revise':\n      nextAction = 'revise';\n      actionReason = 'AI建议修改';\n      processedData.readyForPublish = false;\n      processedData.revisionSuggestions = managementResult.decision.modifications;\n      break;\n      \n    case 'hold':\n      nextAction = 'hold';\n      actionReason = 'AI建议暂停，需人工审核';\n      processedData.readyForPublish = false;\n      processedData.holdReason = managementResult.decision.reasoning.join('; ');\n      break;\n      \n    default:\n      nextAction = 'continue';\n      actionReason = '默认继续处理';\n      processedData.readyForPublish = true;\n  }\n  \n  processedData.nextAction = nextAction;\n  processedData.actionReason = actionReason;\n  \n  // 准备火鸟门户发布数据（如果需要）\n  if (processedData.readyForPublish) {\n    processedData.publishData = {\n      service: 'article',\n      action: 'put',\n      title: (processedData.title || '').substring(0, 60),\n      typeid: processedData.categoryId || processedData.分类ID || 1,\n      body: processedData.content || processedData.内容 || '',\n      writer: processedData.author || processedData.作者 || 'AI采集',\n      source: processedData.source || processedData.来源 || 'AI采集',\n      sourceurl: processedData.source_url || processedData.原始URL || '',\n      keywords: typeof processedData.keywords === 'string' \n        ? processedData.keywords.substring(0, 50)\n        : (Array.isArray(processedData.keywords) \n            ? processedData.keywords.join(',').substring(0, 50)\n            : (processedData.关键词 || '').substring(0, 50)),\n      description: (processedData.summary || processedData.摘要 || '').substring(0, 255),\n      litpic: processedData.image_url || processedData.缩略图URL || ''\n    };\n  }\n  \n  console.log('✅ AI智能管理完成:', {\n    title: processedData.title?.substring(0, 50) + '...',\n    decision: managementResult.decision.action,\n    confidence: managementResult.decision.confidence,\n    nextAction: nextAction,\n    processingTime: managementResult.processingTime + 'ms'\n  });\n  \n  return {\n    json: processedData\n  };\n  \n} catch (error) {\n  console.error('❌ AI智能管理失败:', {\n    title: managementData.title,\n    error: error.message,\n    stack: error.stack\n  });\n  \n  // 错误情况下的降级处理\n  const fallbackData = {\n    ...inputData,\n    \n    aiManagement: {\n      success: false,\n      error: error.message,\n      timestamp: new Date().toISOString(),\n      fallbackApplied: true\n    },\n    \n    processing_status: 'ai_management_failed',\n    nextAction: 'continue_with_warning',\n    actionReason: `AI管理失败，使用降级策略: ${error.message}`,\n    \n    // 降级情况下仍然准备发布数据\n    readyForPublish: true,\n    publishData: {\n      service: 'article',\n      action: 'put',\n      title: (inputData.title || '').substring(0, 60),\n      typeid: inputData.categoryId || inputData.分类ID || 1,\n      body: inputData.content || inputData.内容 || '',\n      writer: inputData.author || inputData.作者 || 'AI采集',\n      source: inputData.source || inputData.来源 || 'AI采集'\n    }\n  };\n  \n  return {\n    json: fallbackData\n  };\n}"
+    },
+    "retryOnFail": true,
+    "maxTries": 2,
+    "waitBetweenTries": 3000,
+    "continueOnFail": true,
+    "alwaysOutputData": true
+  },
+
+  "decisionRouterNode": {
+    "id": "ai-decision-router",
+    "name": "AI决策路由",
+    "type": "n8n-nodes-base.switch",
+    "typeVersion": 1,
+    "position": [2420, 200],
+    "parameters": {
+      "dataType": "string",
+      "value1": "={{$json.nextAction}}",
+      "rules": {
+        "rules": [
+          {
+            "operation": "equal",
+            "value2": "publish",
+            "output": 0
+          },
+          {
+            "operation": "equal", 
+            "value2": "reject",
+            "output": 1
+          },
+          {
+            "operation": "equal",
+            "value2": "revise",
+            "output": 2
+          },
+          {
+            "operation": "equal",
+            "value2": "hold",
+            "output": 3
+          }
+        ]
+      },
+      "fallbackOutput": 0
+    }
+  },
+
+  "publishPreparationNode": {
+    "id": "publish-preparation",
+    "name": "发布准备处理",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2640, 100],
+    "parameters": {
+      "functionCode": "// 发布准备处理\nconst inputData = $input.first().json;\n\n// 验证发布数据完整性\nfunction validatePublishData(data) {\n  const errors = [];\n  \n  if (!data.publishData) {\n    errors.push('缺少发布数据');\n    return { isValid: false, errors };\n  }\n  \n  const publishData = data.publishData;\n  \n  if (!publishData.title || publishData.title.trim().length === 0) {\n    errors.push('标题不能为空');\n  }\n  \n  if (!publishData.body || publishData.body.trim().length < 50) {\n    errors.push('内容过短（少于50字符）');\n  }\n  \n  if (!publishData.typeid || publishData.typeid < 1) {\n    errors.push('分类ID无效');\n  }\n  \n  return {\n    isValid: errors.length === 0,\n    errors\n  };\n}\n\n// 优化发布数据\nfunction optimizePublishData(data) {\n  const publishData = { ...data.publishData };\n  \n  // 确保字段长度符合要求\n  publishData.title = publishData.title.trim().substring(0, 60);\n  publishData.writer = (publishData.writer || 'AI采集').substring(0, 20);\n  publishData.source = (publishData.source || 'AI采集').substring(0, 30);\n  publishData.sourceurl = (publishData.sourceurl || '').substring(0, 200);\n  publishData.keywords = (publishData.keywords || '').substring(0, 50);\n  publishData.description = (publishData.description || '').substring(0, 255);\n  \n  // 确保数值字段正确\n  publishData.typeid = parseInt(publishData.typeid) || 1;\n  \n  // 添加系统字段\n  publishData.cityid = 1; // 夏威夷城市ID\n  publishData.arcrank = 1; // 已审核状态\n  publishData.weight = 1; // 排序权重\n  publishData.notpost = 0; // 开启评论\n  publishData.color = ''; // 标题颜色\n  publishData.flag = 'r'; // 推荐标记\n  \n  return publishData;\n}\n\ntry {\n  // 验证数据\n  const validation = validatePublishData(inputData);\n  if (!validation.isValid) {\n    throw new Error(`发布数据验证失败: ${validation.errors.join(', ')}`);\n  }\n  \n  // 优化发布数据\n  const optimizedPublishData = optimizePublishData(inputData);\n  \n  // 记录发布准备信息\n  const publishPreparation = {\n    timestamp: new Date().toISOString(),\n    executionId: $execution.id,\n    runIndex: $runIndex,\n    \n    contentInfo: {\n      title: optimizedPublishData.title,\n      category: inputData.category || '科技资讯',\n      source: optimizedPublishData.source,\n      qualityScore: inputData.quality_score || inputData.质量分数 || 0\n    },\n    \n    aiDecision: {\n      action: inputData.aiManagement?.decision?.action || 'approve',\n      confidence: inputData.aiManagement?.decision?.confidence || 0.5,\n      reasoning: inputData.aiManagement?.decision?.reasoning || []\n    },\n    \n    validation: validation,\n    optimizations: {\n      titleTrimmed: inputData.publishData.title !== optimizedPublishData.title,\n      fieldsValidated: true,\n      systemFieldsAdded: true\n    }\n  };\n  \n  console.log('📝 发布准备完成:', {\n    title: optimizedPublishData.title,\n    typeid: optimizedPublishData.typeid,\n    source: optimizedPublishData.source,\n    aiDecision: publishPreparation.aiDecision.action,\n    confidence: publishPreparation.aiDecision.confidence\n  });\n  \n  return {\n    json: {\n      ...inputData,\n      \n      // 优化后的发布数据\n      publishData: optimizedPublishData,\n      \n      // 发布准备信息\n      publishPreparation: publishPreparation,\n      \n      // 更新状态\n      processing_status: 'ready_for_publish',\n      readyForFirebird: true\n    }\n  };\n  \n} catch (error) {\n  console.error('❌ 发布准备失败:', {\n    title: inputData.title,\n    error: error.message\n  });\n  \n  return {\n    json: {\n      ...inputData,\n      \n      publishPreparationError: {\n        message: error.message,\n        timestamp: new Date().toISOString()\n      },\n      \n      processing_status: 'publish_preparation_failed',\n      readyForFirebird: false\n    }\n  };\n}"
+    }
+  },
+
+  "rejectionHandlerNode": {
+    "id": "rejection-handler",
+    "name": "内容拒绝处理",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2640, 200],
+    "parameters": {
+      "functionCode": "// 内容拒绝处理\nconst inputData = $input.first().json;\n\nconst rejectionRecord = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  contentInfo: {\n    title: inputData.title,\n    source: inputData.source || inputData.来源,\n    category: inputData.category || inputData.分类名称,\n    qualityScore: inputData.quality_score || inputData.质量分数 || 0\n  },\n  \n  rejectionDetails: {\n    reason: inputData.rejectionReason || 'AI建议拒绝',\n    aiDecision: inputData.aiManagement?.decision || {},\n    contentReview: inputData.aiManagement?.contentReview || {}\n  },\n  \n  notionInfo: {\n    pageId: inputData.notionPageId,\n    url: inputData.notionUrl,\n    needsStatusUpdate: true\n  }\n};\n\nconsole.log('🚫 内容被拒绝:', {\n  title: rejectionRecord.contentInfo.title,\n  reason: rejectionRecord.rejectionDetails.reason,\n  qualityScore: rejectionRecord.contentInfo.qualityScore,\n  aiConfidence: rejectionRecord.rejectionDetails.aiDecision.confidence\n});\n\n// 可以在这里添加拒绝内容的后续处理\n// 例如：更新Notion状态、发送通知、记录到日志系统等\n\nreturn {\n  json: {\n    ...inputData,\n    \n    rejectionRecord: rejectionRecord,\n    processing_status: 'rejected_by_ai',\n    finalStatus: 'rejected',\n    \n    // 标记不需要进一步处理\n    skipFirebirdPublish: true,\n    workflowComplete: true\n  }\n};"
+    }
+  },
+
+  "revisionHandlerNode": {
+    "id": "revision-handler", 
+    "name": "内容修改处理",
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2640, 300],
+    "parameters": {
+      "functionCode": "// 内容修改处理\nconst inputData = $input.first().json;\n\nconst revisionRecord = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  contentInfo: {\n    title: inputData.title,\n    source: inputData.source || inputData.来源,\n    category: inputData.category || inputData.分类名称\n  },\n  \n  revisionDetails: {\n    suggestions: inputData.revisionSuggestions || {},\n    aiDecision: inputData.aiManagement?.decision || {},\n    optimizationSuggestions: inputData.aiManagement?.contentReview?.optimizationSuggestions || {}\n  },\n  \n  nextSteps: [\n    '应用AI优化建议',\n    '重新进行质量评估',\n    '更新Notion记录',\n    '重新提交审核'\n  ]\n};\n\nconsole.log('✏️ 内容需要修改:', {\n  title: revisionRecord.contentInfo.title,\n  suggestions: Object.keys(revisionRecord.revisionDetails.suggestions),\n  nextSteps: revisionRecord.nextSteps.length\n});\n\n// 在实际实现中，这里可以：\n// 1. 自动应用一些简单的修改建议\n// 2. 将内容发送到人工审核队列\n// 3. 更新Notion中的状态和建议\n// 4. 触发重新处理流程\n\nreturn {\n  json: {\n    ...inputData,\n    \n    revisionRecord: revisionRecord,\n    processing_status: 'needs_revision',\n    finalStatus: 'pending_revision',\n    \n    // 标记需要人工干预\n    requiresManualReview: true,\n    skipFirebirdPublish: true,\n    workflowComplete: false\n  }\n};"
+    }
+  },
+
+  "holdHandlerNode": {
+    "id": "hold-handler",
+    "name": "内容暂停处理", 
+    "type": "n8n-nodes-base.function",
+    "typeVersion": 1,
+    "position": [2640, 400],
+    "parameters": {
+      "functionCode": "// 内容暂停处理\nconst inputData = $input.first().json;\n\nconst holdRecord = {\n  timestamp: new Date().toISOString(),\n  executionId: $execution.id,\n  runIndex: $runIndex,\n  \n  contentInfo: {\n    title: inputData.title,\n    source: inputData.source || inputData.来源,\n    category: inputData.category || inputData.分类名称,\n    qualityScore: inputData.quality_score || inputData.质量分数 || 0\n  },\n  \n  holdDetails: {\n    reason: inputData.holdReason || 'AI置信度过低',\n    aiDecision: inputData.aiManagement?.decision || {},\n    confidence: inputData.aiManagement?.decision?.confidence || 0\n  },\n  \n  recommendedActions: [\n    '人工审核内容质量',\n    '验证内容来源可靠性',\n    '确认分类准确性',\n    '评估发布时机'\n  ]\n};\n\nconsole.log('⏸️ 内容被暂停:', {\n  title: holdRecord.contentInfo.title,\n  reason: holdRecord.holdDetails.reason,\n  confidence: holdRecord.holdDetails.confidence,\n  qualityScore: holdRecord.contentInfo.qualityScore\n});\n\n// 在实际实现中，这里可以：\n// 1. 发送通知给内容管理员\n// 2. 将内容添加到人工审核队列\n// 3. 更新Notion中的状态\n// 4. 设置定时重新评估\n\nreturn {\n  json: {\n    ...inputData,\n    \n    holdRecord: holdRecord,\n    processing_status: 'on_hold',\n    finalStatus: 'pending_manual_review',\n    \n    // 标记需要人工干预\n    requiresManualReview: true,\n    skipFirebirdPublish: true,\n    workflowComplete: false,\n    \n    // 添加审核队列信息\n    reviewQueue: {\n      priority: holdRecord.holdDetails.confidence < 0.3 ? 'high' : 'medium',\n      estimatedReviewTime: '24小时内',\n      assignedReviewer: null\n    }\n  }\n};"
+    }
+  },
+
+  "workflowIntegration": {
+    "description": "将AI智能管理节点集成到现有工作流的配置",
+    "insertAfterNode": "Notion存储状态跟踪",
+    "connections": {
+      "from": "notion-status-tracker",
+      "to": "ai-intelligent-management",
+      "condition": "storageSuccess === true"
+    }
+  },
+
+  "environmentVariables": {
+    "required": [
+      "OPENAI_API_KEY",
+      "HUONIAO_SESSION_ID",
+      "NOTION_API_TOKEN",
+      "NOTION_DATABASE_ID"
+    ],
+    "optional": [
+      "AI_MODEL",
+      "AI_TEMPERATURE",
+      "AI_MAX_TOKENS",
+      "AI_TIMEOUT"
+    ],
+    "defaults": {
+      "AI_MODEL": "gpt-4",
+      "AI_TEMPERATURE": "0.3",
+      "AI_MAX_TOKENS": "1000",
+      "AI_TIMEOUT": "30000"
+    }
+  },
+
+  "monitoring": {
+    "metrics": [
+      "ai_management_success_rate",
+      "ai_management_response_time", 
+      "ai_decision_accuracy",
+      "content_approval_rate",
+      "content_rejection_rate"
+    ],
+    "alerts": [
+      {
+        "condition": "ai_management_success_rate < 90%",
+        "severity": "warning",
+        "message": "AI管理成功率低于90%"
+      },
+      {
+        "condition": "ai_management_response_time > 15000",
+        "severity": "warning", 
+        "message": "AI管理响应时间超过15秒"
+      },
+      {
+        "condition": "content_rejection_rate > 30%",
+        "severity": "critical",
+        "message": "内容拒绝率超过30%，需要检查质量阈值"
+      }
+    ]
+  },
+
+  "testingConfiguration": {
+    "testCases": [
+      {
+        "name": "高质量内容测试",
+        "input": {
+          "title": "AI技术突破：GPT-5即将发布",
+          "content": "OpenAI公司今日宣布，其最新的大语言模型GPT-5将在下个月正式发布...",
+          "source": "TechCrunch",
+          "category": "科技资讯",
+          "quality_score": 85
+        },
+        "expectedDecision": "approve"
+      },
+      {
+        "name": "低质量内容测试",
+        "input": {
+          "title": "标题过短",
+          "content": "内容过短",
+          "source": "未知来源",
+          "quality_score": 30
+        },
+        "expectedDecision": "reject"
+      },
+      {
+        "name": "需要修改内容测试",
+        "input": {
+          "title": "有趣的AI新闻但标题不够吸引人",
+          "content": "这是一个关于AI的新闻，但是内容结构不够清晰，需要优化...",
+          "source": "AI News",
+          "quality_score": 65
+        },
+        "expectedDecision": "revise"
+      }
+    ]
+  }
+}

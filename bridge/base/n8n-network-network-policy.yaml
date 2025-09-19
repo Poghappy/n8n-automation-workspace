@@ -1,0 +1,24 @@
+#! n8n-network-network-policy.yaml
+# Generated code, do not edit
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: n8n-network-network-policy
+    namespace: n8n-
+spec:
+    podSelector:
+        matchLabels:
+            com.docker.compose.network.n8n-network: "true"
+    policyTypes:
+        - Ingress
+        - Egress
+    ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                    com.docker.compose.network.n8n-network: "true"
+    egress:
+        - to:
+            - podSelector:
+                matchLabels:
+                    com.docker.compose.network.n8n-network: "true"

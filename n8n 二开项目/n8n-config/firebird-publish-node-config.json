@@ -1,0 +1,357 @@
+{
+  "name": "火鸟门户新闻发布节点配置",
+  "description": "基于官方API文档的完整火鸟门户发布节点配置，包含数据映射、重试机制和状态检查",
+  "version": "2.0.0",
+  "lastUpdated": "2025-01-22",
+  
+  "httpRequestNode": {
+    "name": "火鸟门户新闻发布",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": "4.2",
+    
+    "parameters": {
+      "url": "https://hawaiihub.net/include/ajax.php",
+      "authentication": "none",
+      "httpMethod": "POST",
+      
+      "sendHeaders": true,
+      "headerParameters": {
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          },
+          {
+            "name": "Cookie",
+            "value": "={{$json.authCookie}}"
+          },
+          {
+            "name": "User-Agent",
+            "value": "Mozilla/5.0 (compatible; n8n-automation/1.0)"
+          },
+          {
+            "name": "Accept",
+            "value": "application/json, text/plain, */*"
+          },
+          {
+            "name": "Accept-Language",
+            "value": "zh-CN,zh;q=0.9,en;q=0.8"
+          },
+          {
+            "name": "Referer",
+            "value": "https://hawaiihub.net/"
+          },
+          {
+            "name": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ]
+      },
+      
+      "sendBody": true,
+      "contentType": "form-urlencoded",
+      "bodyParameters": {
+        "parameters": [
+          {
+            "name": "service",
+            "value": "={{$json.service}}",
+            "description": "服务名，固定为 'article'"
+          },
+          {
+            "name": "action",
+            "value": "={{$json.action}}",
+            "description": "动作名，发布投稿为 'put'"
+          },
+          {
+            "name": "title",
+            "value": "={{$json.title}}",
+            "description": "信息标题，最大60字符"
+          },
+          {
+            "name": "typeid",
+            "value": "={{$json.typeid}}",
+            "description": "类型ID，必填"
+          },
+          {
+            "name": "body",
+            "value": "={{$json.body}}",
+            "description": "投稿内容，必填"
+          },
+          {
+            "name": "writer",
+            "value": "={{$json.writer}}",
+            "description": "作者，最大20字符"
+          },
+          {
+            "name": "source",
+            "value": "={{$json.source}}",
+            "description": "来源，最大30字符"
+          },
+          {
+            "name": "keywords",
+            "value": "={{$json.keywords || ''}}",
+            "description": "关键词，最大50字符"
+          },
+          {
+            "name": "description",
+            "value": "={{$json.description || ''}}",
+            "description": "描述，最大255字符"
+          },
+          {
+            "name": "sourceurl",
+            "value": "={{$json.sourceurl || ''}}",
+            "description": "来源网址，最大200字符"
+          },
+          {
+            "name": "litpic",
+            "value": "={{$json.litpic || ''}}",
+            "description": "缩略图，加密ID格式"
+          },
+          {
+            "name": "imglist",
+            "value": "={{$json.imglist || ''}}",
+            "description": "图集列表，格式：图片加密ID|说明，..."
+          }
+        ]
+      },
+      
+      "options": {
+        "timeout": 30000,
+        "retry": {
+          "enabled": true,
+          "maxTries": 3,
+          "waitBetweenTries": 5000
+        },
+        "response": {
+          "responseFormat": "json",
+          "outputPropertyName": "data"
+        },
+        "redirect": {
+          "redirect": {
+            "followRedirects": true,
+            "maxRedirects": 3
+          }
+        }
+      }
+    },
+    
+    "nodeSettings": {
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": false,
+      "alwaysOutputData": false
+    }
+  },
+  
+  "dataMapping": {
+    "description": "从Notion数据到火鸟门户API的字段映射",
+    "mappings": {
+      "service": {
+        "value": "article",
+        "type": "constant",
+        "description": "API服务名"
+      },
+      "action": {
+        "value": "put",
+        "type": "constant",
+        "description": "发布投稿动作"
+      },
+      "title": {
+        "source": "标题",
+        "transform": "substring(0, 60)",
+        "required": true,
+        "description": "新闻标题，限制60字符"
+      },
+      "typeid": {
+        "source": "分类ID",
+        "default": 1,
+        "type": "integer",
+        "required": true,
+        "description": "新闻分类ID"
+      },
+      "body": {
+        "source": "内容",
+        "required": true,
+        "description": "新闻正文内容"
+      },
+      "writer": {
+        "source": "作者",
+        "default": "AI采集",
+        "transform": "substring(0, 20)",
+        "description": "作者名称，限制20字符"
+      },
+      "source": {
+        "source": "来源",
+        "default": "AI采集",
+        "transform": "substring(0, 30)",
+        "description": "新闻来源，限制30字符"
+      },
+      "keywords": {
+        "source": "关键词",
+        "transform": "join(',').substring(0, 50)",
+        "description": "关键词，限制50字符"
+      },
+      "description": {
+        "source": "摘要",
+        "transform": "substring(0, 255)",
+        "description": "新闻描述，限制255字符"
+      },
+      "sourceurl": {
+        "source": "原始URL",
+        "transform": "substring(0, 200)",
+        "description": "来源网址，限制200字符"
+      },
+      "litpic": {
+        "source": "缩略图URL",
+        "description": "缩略图地址"
+      },
+      "imglist": {
+        "source": "图片集合",
+        "transform": "map(img => img + '|AI采集图片').join(',')",
+        "description": "图集列表"
+      }
+    }
+  },
+  
+  "responseHandling": {
+    "successCondition": "response.data.state === 100",
+    "errorConditions": {
+      "101": "API业务错误",
+      "200": "API处理失败"
+    },
+    "responseFields": {
+      "state": {
+        "type": "integer",
+        "description": "状态码：100成功/101错误/200失败"
+      },
+      "info": {
+        "type": "mixed",
+        "description": "成功时返回文章ID，失败时返回错误信息"
+      }
+    }
+  },
+  
+  "retryStrategy": {
+    "maxAttempts": 3,
+    "baseDelay": 5000,
+    "backoffMultiplier": 1.5,
+    "retryableErrors": [
+      "network_timeout",
+      "connection_error",
+      "server_error_5xx"
+    ],
+    "nonRetryableErrors": [
+      "validation_error",
+      "authentication_error",
+      "business_logic_error"
+    ]
+  },
+  
+  "validation": {
+    "prePublishChecks": [
+      {
+        "field": "title",
+        "rules": ["required", "maxLength:60", "minLength:5"]
+      },
+      {
+        "field": "body",
+        "rules": ["required", "minLength:50"]
+      },
+      {
+        "field": "typeid",
+        "rules": ["required", "integer", "min:1"]
+      },
+      {
+        "field": "writer",
+        "rules": ["maxLength:20"]
+      },
+      {
+        "field": "source",
+        "rules": ["maxLength:30"]
+      },
+      {
+        "field": "keywords",
+        "rules": ["maxLength:50"]
+      },
+      {
+        "field": "description",
+        "rules": ["maxLength:255"]
+      },
+      {
+        "field": "sourceurl",
+        "rules": ["maxLength:200", "url"]
+      }
+    ]
+  },
+  
+  "monitoring": {
+    "metrics": [
+      "publish_success_rate",
+      "publish_response_time",
+      "retry_count",
+      "error_rate_by_type"
+    ],
+    "alerts": [
+      {
+        "condition": "success_rate < 95%",
+        "severity": "warning",
+        "action": "notify_admin"
+      },
+      {
+        "condition": "response_time > 30s",
+        "severity": "warning",
+        "action": "check_network"
+      },
+      {
+        "condition": "error_rate > 5%",
+        "severity": "critical",
+        "action": "investigate_immediately"
+      }
+    ]
+  },
+  
+  "troubleshooting": {
+    "commonIssues": {
+      "session_expired": {
+        "symptoms": ["401 Unauthorized", "登录失效"],
+        "solution": "更新HUONIAO_SESSION_ID环境变量",
+        "prevention": "定期检查会话有效性"
+      },
+      "data_validation_failed": {
+        "symptoms": ["state: 101", "字段验证错误"],
+        "solution": "检查数据格式和长度限制",
+        "prevention": "加强预发布数据验证"
+      },
+      "network_timeout": {
+        "symptoms": ["timeout", "connection refused"],
+        "solution": "检查网络连接和服务器状态",
+        "prevention": "增加重试机制和监控"
+      }
+    }
+  },
+  
+  "examples": {
+    "successfulRequest": {
+      "service": "article",
+      "action": "put",
+      "title": "AI技术最新发展动态",
+      "typeid": 1,
+      "body": "人工智能技术在各个领域都取得了显著进展...",
+      "writer": "AI采集",
+      "source": "The Neuron",
+      "keywords": "AI,人工智能,技术",
+      "description": "本文介绍了AI技术的最新发展动态和应用前景",
+      "sourceurl": "https://example.com/ai-news",
+      "litpic": ""
+    },
+    "successfulResponse": {
+      "state": 100,
+      "info": 12345
+    },
+    "errorResponse": {
+      "state": 101,
+      "info": "标题不能为空"
+    }
+  }
+}

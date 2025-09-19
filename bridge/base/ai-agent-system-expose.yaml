@@ -1,0 +1,21 @@
+#! ai-agent-system-expose.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Service
+metadata:
+    name: ai-agent-system
+    namespace: n8n-
+    labels:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: ai-agent-system
+spec:
+    selector:
+        com.docker.compose.project: n8n-
+        com.docker.compose.service: ai-agent-system
+    ports:
+        - name: ai-agent-s-8000
+          port: 8000
+          targetPort: ai-agent-s-8000
+        - name: ai-agent-s-8001
+          port: 8001
+          targetPort: ai-agent-s-8001

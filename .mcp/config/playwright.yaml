@@ -1,0 +1,37 @@
+# Playwright MCP Configuration
+
+# 基本设置
+mode: browser
+use_existing_browser: true
+browser_type: chromium
+
+# 浏览器配置
+browser_config:
+  headless: false
+  slowMo: 50
+  timeout: 30000
+  viewport:
+    width: 1280
+    height: 800
+
+# 连接设置
+connection:
+  wsEndpoint: "ws://localhost:9222"
+  retry_count: 3
+  retry_delay: 1000
+
+# 日志设置
+logging:
+  level: info
+  file: ".mcp/logs/playwright.log"
+
+# 性能设置
+performance:
+  tracing: false
+  screenshots: false
+  video: false
+
+# 安全设置
+security:
+  ignore_https_errors: false
+  bypass_csp: false
