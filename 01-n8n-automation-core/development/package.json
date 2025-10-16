@@ -35,7 +35,7 @@
   "license": "MIT",
   "dependencies": {
     "puppeteer": "^24.16.2",
-    "axios": "^1.6.0",
+    "axios": "^1.12.2",
     "dotenv": "^16.3.0",
     "@notionhq/client": "^2.2.15"
   },
