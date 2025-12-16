@@ -128,11 +128,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.2",
-    "@n8n/n8n-nodes-langchain": "^1.105.3",
+    "@n8n/n8n-nodes-langchain": "^1.118.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "n8n": "^1.106.3",
-    "n8n-core": "^1.105.3",
+    "n8n": "^2.0.0",
+    "n8n-core": "^1.118.0",
     "n8n-workflow": "^1.103.3",
     "sql.js": "^1.13.0",
     "uuid": "^10.0.0"
